@@ -1,0 +1,3475 @@
+/****************************************
+  DEFINST(op, val0, msk0, val1, msk1,
+          cond,
+          o0, o1,
+          i0, i1, i2, i3,
+          cgflags, opkind,
+          res0, res1)
+ ******************************************/
+
+#define LINK     DEF_LINK
+#define INST     DEF_INST
+#define TAIL     DEF_TAIL
+#define CONNECT  DEF_CONNECT
+
+
+/* A5.1 ARM Instruction Set */
+
+//// conditional
+
+// op1 = 000(0) & cond != 0xF   Data Processing (reg/reg-shift)
+LINK(X0, 0x00000000, 0x0e000000, 0xf0000000, 0xf0000000)              /* SISA_OP_X0             */
+// op1 = 001(0) & cond != 0xF   Data Processing (imm)
+LINK(X2, 0x02000000, 0x0e000000, 0xf0000000, 0xf0000000)              /* SISA_OP_X2             */
+// op1 = 01x(0) & cond != 0xF
+// op1 = 010(0) Load/Store word and unsigned byte
+// op1 = 011(0) Load/Store word and unsigned byte  && media
+LINK(X4, 0x04000000, 0x0c000000, 0xf0000000, 0xf0000000)              /* SISA_OP_X4             */
+
+// op1 = 10x(0) & cond != 0xF   Branch and Block Data transfer
+LINK(X8, 0x08000000, 0x0c000000, 0xf0000000, 0xf0000000)              /* SISA_OP_X8             */
+// op1 = 11x(0) & cond != 0xF   Supervisor Call, Coprocessor Instruction and VFP, SIMD
+LINK(XC, 0x0c000000, 0x0c000000, 0xf0000000, 0xf0000000)              /* SISA_OP_XC             */
+
+/* A5.7, A5.7.1 Unconditional misc*/
+// [27-25] = 000(0) & cond = 0xF   Change Processor State, SETEND
+LINK(F0, 0xf0000000, 0xfe000000, 0xffffffff, 0x00000000)              /* SISA_OP_F0             */
+// [27-25] = 001(0) & cond = 0xF   SIMD data-processing
+LINK(F2, 0xf2000000, 0xfe000000, 0xffffffff, 0x00000000)              /* SISA_OP_F2             */
+// [27-25] = 010(0) & cond = 0xF   SIMD load/store, unallocated memory hint, preload instruction(ifetch)
+LINK(F4, 0xf4000000, 0xf4000000, 0xffffffff, 0x00000000)              /* SISA_OP_F4             */
+
+/* A5.7 Unconditional instructions*/
+// [1111] [100x x1x0] STM Store Multiple (reg) A5.5->B6.1.11
+INST(SRS, 0xf8400000, 0xfe500000, 0xffffffff, 0x00000000,             /* SISA_OP_SRS            */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DNA, DNA, DNA,
+     NONE_FLAG, SYS_OP,
+     0, 0)
+INST(RFE, 0xf8100000, 0xfe500000, 0xffffffff, 0x00000000,             /* SISA_OP_RFE            */
+     NCOND,
+     DGPR_LIST(0, 15), DNA,
+     DGPR(16,19),DNA, DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG, SYS_OP,
+     0, 0)
+// [1111][101x xxxx] branch with link and exchange
+INST(BLX_imm_a2, 0xfa000000, 0xfe000000, 0xffffffff, 0x00000000,      /* SISA_OP_BLX_imm_a2     */
+     NCOND,
+     DNA, DNA,
+     DIMM_SIGN_EXTEND(0,23,0), DNA, DNA, DNA,
+     BR_DIR_FLAG| BLR_FLAG |SECOND_IMM_FLAG, JMP_OP,
+     0, 0)
+// [1111][1100 0101]   subset of SISA_OP_LDC2_imm
+INST(MRRC2, 0xfc500000, 0xfff00000, 0xffffffff, 0x00000000,           /* SISA_OP_MRRC2          */
+     NCOND,
+     DGPR(12,15),DGPR(16,19),
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+// [1111][110x xxx1] & Rn != 0xf  Load Coprocessor(imm, not literal)
+INST(LDC2_imm, 0xfc100000, 0xfe100000, 0x000f0000, 0x000f0000,        /* SISA_OP_LDC2_imm       */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DIMM(0,7), DNA, DNA,
+     NONE_FLAG|SECOND_IMM_FLAG, NO_OP,
+     0, 0)
+// [1111][110x xxx1 1111]
+INST(LDC2_lit, 0xfc1f0000, 0xfe1f0000, 0xffffffff, 0x00000000,        /* SISA_OP_LDC2_lit       */
+     NCOND,
+     DNA, DNA,
+     DIMM(0,7), DNA, DNA, DNA,
+     OP_LIT_FLAG, NO_OP,
+     0, 0)
+INST(STC2, 0xfc000000, 0xfe100000, 0xffffffff, 0x00000000,            /* SISA_OP_STC2           */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DIMM(0,7), DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+// [cond][1100 0100]
+INST(MCRR2, 0xfc400000, 0xfff00000, 0xffffffff, 0x00000000,           /* SISA_OP_MCRR2          */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15),DGPR(16,19), DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+INST(CDP2, 0xfe000000, 0xff000010, 0xffffffff, 0x00000000,            /* SISA_OP_CDP2           */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+INST(MCR2, 0xfe000010, 0xff100010, 0xffffffff, 0x00000000,            /* SISA_OP_MCR2           */
+     NCOND,
+     DNA,DNA,
+     DGPR(12,15),DNA, DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+INST(MRC2, 0xfe100010, 0xff100010, 0xffffffff, 0x00000000,            /* SISA_OP_MRC2           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+
+TAIL(TOP_END, 0x0, 0x0, 0x0, 0x0)                                     /* SISA_OP_TOP_END        */
+
+CONNECT(X0)                                                           /* SISA_OP_X0_CONNECT     */
+/* connect A5.2.5 */
+LINK(X0_0, 0x00000090, 0x0f0000f0, 0xf0000000, 0xf0000000)            /* SISA_OP_X0_0           */
+/* connect A5.2.12 */
+LINK(X0_1, 0x01000000, 0x0f900080, 0xf0000000, 0xf0000000)            /* SISA_OP_X0_1           */
+/* connect A5.2.7 */
+LINK(X0_2, 0x01000080, 0x0f900090, 0xf0000000, 0xf0000000)            /* SISA_OP_X0_2           */
+/* connect A5.2.10 */
+LINK(X0_3, 0x01000090, 0x0f0000f0, 0xf0000000, 0xf0000000)            /* SISA_OP_X0_3           */
+/* connect A5.2.1 */
+LINK(X0_4, 0x00000000, 0x0e000010, 0xf0000000, 0xf0000000)            /* SISA_OP_X0_4           */
+/* connect bit[4] = 1 */
+LINK(X0_5, 0x00000010, 0x0e000010, 0xf0000000, 0xf0000000)            /* SISA_OP_X0_5           */
+TAIL(X0_END, 0x0, 0x0, 0x0, 0x0)
+
+CONNECT(X0_0)                                                         /* SISA_OP_X0_0_CONNECT   */
+/* A5.2.5 Multiply and multiply-accumulate  */
+INST(MUL, 0x00000090, 0x0fe000f0, 0xf0000000, 0xf0000000,             /* SISA_OP_MUL            */
+     CONDN|CONDZ|CONDS(20), //if ARM V4, C=Unknow, else C unchanged
+     DGPR(16,19), DNA,
+     DGPR(0,3), DGPR(8,11), DNA, DNA,
+     REG_FLAG, MUL32_OP,
+     0, 0)
+INST(MLA, 0x00200090, 0x0fe000f0, 0xf0000000, 0xf0000000,             /* SISA_OP_MLA            */
+     CONDN|CONDZ|CONDS(20),//if ARM V4, C=Unknow, else C unchanged
+     DGPR(16,19), DNA,
+     DGPR(0,3), DGPR(8,11), DGPR(12,15), DNA,
+     REG_FLAG, MUL32_OP,
+     0, 0)
+INST(UMAAL, 0x00400090, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_UMAAL          */
+     NCOND,
+     DGPR_RW(16,19), DGPR_RW(12,15),
+     DGPR(0,3), DGPR(8,11), DNA, DNA,
+     REG_FLAG, UMUL_OP,
+     0, 0)
+INST(MLS, 0x00600090, 0x0ff000f0, 0xf0000000, 0xf0000000,             /* SISA_OP_MLS            */
+     CONDN|CONDZ|CONDS(20),
+     DGPR(16,19), DNA,
+     DGPR(0,3), DGPR(8,11), DGPR(12,15), DNA,
+     REG_FLAG, MUL32_OP,
+     0, 0)
+INST(UMULL, 0x00800090, 0x0fe000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_UMULL          */
+     CONDN|CONDZ|CONDS(20), // if version = 4, C,V unknow, else C,V unchanged
+     DGPR(16,19), DGPR(12,15),
+     DGPR(0,3), DGPR(8,11), DNA, DNA,
+     REG_FLAG, UMUL_OP,
+     0, 0)
+INST(UMLAL, 0x00a00090, 0x0fe000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_UMLAL          */
+     CONDN|CONDZ|CONDS(20),// if version = 4, C,V unknow, else C,V unchanged
+     DGPR_RW(16,19), DGPR_RW(12,15),
+     DGPR(0,3), DGPR(8,11), DNA, DNA,
+     REG_FLAG, UMUL_OP,
+     0, 0)
+INST(SMULL, 0x00c00090, 0x0fe000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_SMULL          */
+     CONDN|CONDZ|CONDS(20),
+     DGPR(16,19), DGPR(12,15),
+     DGPR(0,3), DGPR(8,11), DNA, DNA,
+     REG_FLAG, SMUL_OP,
+     0, 0)
+INST(SMLAL, 0x00e00090, 0x0fe000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_SMLAL          */
+     CONDN|CONDZ|CONDS(20),
+     DGPR_RW(16,19), DGPR_RW(12,15),
+     DGPR(0,3), DGPR(8,11), DNA, DNA,
+     REG_FLAG, SMUL_OP,
+     0, 0)
+
+TAIL(X0_0_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_X0_0_END       */
+
+CONNECT(X0_1)                                                         /* SISA_OP_X0_1_CONNECT   */
+
+/* A5.2.12 Miscellaneous instructions */
+/* this cover APSR to GPR */
+INST(MRS_a, 0x01000000, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_MRS_a          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DNA, DNA, DNA, DNA,
+     USE_GE_FLAG, SR_OP,
+     0, 0)
+/* this cover CPSR,SPSR to GPR */
+INST(MRS, 0x01000000, 0x0fb000f0, 0xf0000000, 0xf0000000,             /* SISA_OP_MRS            */
+     NCOND,
+     DGPR(12,15), DNA,
+     DNA, DNA, DNA, DNA,
+     USE_GE_FLAG, SR_OP,
+     0, 0)
+/* this cover MSR, application level */
+INST(MSR_reg_a, 0x01200000, 0x0ff300f0, 0xf0000000, 0xf0000000,           /* SISA_OP_MSR_reg_a          */
+     CONDN|CONDZ|CONDC|CONDV,
+     DNA, DNA,
+     DGPR(0,3), DIMM(18,19), DNA, DNA,
+     GE_FLAG, SR_OP,
+     0, 0)
+/* this cover MSR, system level */
+INST(MSR_reg_s, 0x01200000, 0x0fb000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_MSR_reg_s          */
+     CONDN|CONDZ|CONDC|CONDV,
+     DNA, DNA,
+     DGPR(0,3), DIMM(18,19), DNA, DNA,
+     GE_FLAG, SR_OP,
+     0, 0)
+INST(BX, 0x01200010, 0x0ff000f0, 0xf0000000, 0xf0000000,              /* SISA_OP_BX             */
+     NCOND,
+     DNA, DNA,
+     DGPR(0,3), DNA, DNA, DNA,
+     BR_INDIR_FLAG, JMP_OP,
+     0, 0)
+INST(CLZ, 0x01600010, 0x0ff000f0, 0xf0000000, 0xf0000000,             /* SISA_OP_CLZ            */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(0,3), DNA, DNA, DNA,
+     NONE_FLAG, MISC_OP,
+     0, 0)
+INST(BXJ_reg, 0x01200020, 0x0ff000f0, 0xf0000000, 0xf0000000,         /* SISA_OP_BXJ_reg        */
+     NCOND,
+     DNA, DNA,
+     DGPR(0,3), DNA, DNA, DNA,
+     REG_FLAG, NO_OP,
+     0, 0)
+INST(BLX_reg, 0x01200030, 0x0ff000f0, 0xf0000000, 0xf0000000,         /* SISA_OP_BLX_reg        */
+     NCOND,
+     DNA, DNA,
+     DGPR(0,3), DNA, DNA, DNA,
+     BR_INDIR_FLAG|BLR_FLAG|REG_FLAG, JMP_OP,
+     0, 0)
+INST(BKPT, 0x01200070, 0x0ff000f0, 0xf0000000, 0xf0000000,            /* SISA_OP_BKPT           */
+     NCOND,
+     DNA, DNA,
+     DIMM_MERGE(8,19,0,3), DNA, DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+INST(SMC, 0x01600070, 0x0ff000f0, 0xf0000000, 0xf0000000,             /* SISA_OP_SMC            */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, SYS_OP,
+     0, 0)
+/* A5.2.6 Saturation addition and subtraction */
+INST(QADD, 0x01000050, 0x0ff000f0, 0xf0000000, 0xf0000000,            /* SISA_OP_QADD           */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(QSUB, 0x01200050, 0x0ff000f0, 0xf0000000, 0xf0000000,            /* SISA_OP_QSUB           */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(QDADD, 0x01400050, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_QDADD          */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(QDSUB, 0x01600050, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_QDSUB          */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+TAIL(X0_1_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_X0_1_END       */
+
+CONNECT(X0_2)                                                         /* SISA_OP_X0_2_CONNECT   */
+/* A5.2.7 Halfword multiply and multiply-accumulate */
+INST(SMLABB, 0x01000080, 0x0ff00090, 0xf0000000, 0xf0000000,          /* SISA_OP_SMLABB         */
+     NCOND,
+     DGPR(16,19), DNA,
+     DGPR(0,3), DGPR(8,11), DGPR(12,15), DNA,
+     REG_FLAG, SMUL_OP,
+     0, 0)
+INST(SMLAWB, 0x01200080, 0x0ff000b0, 0xf0000000, 0xf0000000,          /* SISA_OP_SMLAWB         */
+     NCOND,
+     DGPR(16,19), DNA,
+     DGPR(0,3), DGPR(8,11), DGPR(12,15), DNA,
+     REG_FLAG, SMUL_OP,
+     0, 0)
+INST(SMULWB, 0x012000a0, 0x0ff000b0, 0xf0000000, 0xf0000000,          /* SISA_OP_SMULWB         */
+     NCOND,
+     DGPR(16,19), DNA,
+     DGPR(0,3), DGPR(8,11), DNA, DNA,
+     REG_FLAG, SMUL_OP,
+     0, 0)
+INST(SMLALBB, 0x01400080, 0x0ff00090, 0xf0000000, 0xf0000000,         /* SISA_OP_SMLALBB        */
+     NCOND,
+     DGPR(16,19), DGPR(12,15),
+     DGPR(0,3), DGPR(8,11), DNA, DNA,
+     REG_FLAG, SMUL_OP,
+     0, 0)
+INST(SMULBB, 0x01600080, 0x0ff00090, 0xf0000000, 0xf0000000,          /* SISA_OP_SMULBB         */
+     NCOND,
+     DGPR(16,19), DNA,
+     DGPR(0,3), DGPR(8,11), DNA, DNA,
+     REG_FLAG, SMUL_OP,
+     0, 0)
+
+TAIL(X0_2_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_X0_2_END       */
+
+CONNECT(X0_3)                                                         /* SISA_OP_X0_3_CONNECT   */
+/* A5.2.10 Synchronization primitives */
+INST(SWP, 0x01000090, 0x0ff000f0, 0xf0000000, 0xf0000000,             /* SISA_OP_SWP            */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(0,3), DGPR(16,19), DNA, DNA,
+     NONE_FLAG, MISC_OP,
+     0, 0)
+INST(SWPB, 0x01400090, 0x0ff000f0, 0xf0000000, 0xf0000000,             /* SISA_OP_SWPB            */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(0,3), DGPR(16,19), DNA, DNA,
+     OP_SIZE_BYTE_FLAG|UNSIGNED_FLAG, MISC_OP,
+     0, 0)
+INST(STREX, 0x01800090, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_STREX          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(0,3), DGPR(16,19), DNA, DNA,
+     NONE_FLAG, STREX_OP,
+     0, 0)
+INST(LDREX, 0x01900090, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_LDREX          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DNA, DNA, DNA,
+     NONE_FLAG, LDREX_OP,
+     0, 0)
+INST(STREXD, 0x01a00090, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_STREXD         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(0,3), DGPR(16,19), DNA, DNA,
+     NONE_FLAG, STREX_OP,
+     0, 0)
+INST(LDREXD, 0x01b00090, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_LDREXD         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DNA, DNA, DNA,
+     NONE_FLAG, LDREX_OP,
+     0, 0)
+INST(STREXB, 0x01c00090, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_STREXB         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(0,3), DGPR(16,19), DNA, DNA,
+     NONE_FLAG, STREX_OP,
+     0, 0)
+INST(LDREXB, 0x01d00090, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_LDREXB         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DNA, DNA, DNA,
+     UNSIGNED_FLAG, LDREX_OP,
+     0, 0)
+INST(STREXH, 0x01e00090, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_STREXH         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(0,3), DGPR(16,19), DNA, DNA,
+     NONE_FLAG, STREX_OP,
+     0, 0)
+INST(LDREXH, 0x01f00090, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_LDREXH         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DNA, DNA, DNA,
+     UNSIGNED_FLAG, LDREX_OP,
+     0, 0)
+
+TAIL(X0_3_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_X0_3_END       */
+
+CONNECT(X0_4)                                                         /* SISA_OP_X0_4_CONNECT   */
+/* A5.2.1 Data processing */
+INST(AND_reg, 0x00000000, 0x0fe00010, 0xf0000000, 0xf0000000,         /* SISA_OP_AND_reg        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, LOG_OP,
+     0, 0)
+INST(EOR_reg, 0x00200000, 0x0fe00010, 0xf0000000, 0xf0000000,         /* SISA_OP_EOR_reg        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, LOG_OP,
+     0, 0)
+INST(SUB_reg, 0x00400000, 0x0fe00010, 0xf0000000, 0xf0000000,         /* SISA_OP_SUB_reg        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     REG_FLAG, ALU_OP,
+     0, 0)
+INST(RSB_reg, 0x00600000, 0x0fe00010, 0xf0000000, 0xf0000000,         /* SISA_OP_RSB_reg        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     REG_FLAG, ALU_OP,
+     0, 0)
+INST(ADD_reg, 0x00800000, 0x0fe00010, 0xf0000000, 0xf0000000,         /* SISA_OP_ADD_reg        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     REG_FLAG, ALU_OP,
+     0, 0)
+INST(ADC_reg, 0x00a00000, 0x0fe00010, 0xf0000000, 0xf0000000,         /* SISA_OP_ADC_reg        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     INPUT_CARRY_FLAG|REG_FLAG, ALU_OP,
+     0, 0)
+INST(SBC_reg, 0x00c00000, 0x0fe00010, 0xf0000000, 0xf0000000,         /* SISA_OP_SBC_reg        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     INPUT_CARRY_FLAG|REG_FLAG, ALU_OP,
+     0, 0)
+INST(RSC_reg, 0x00e00000, 0x0fe00010, 0xf0000000, 0xf0000000,         /* SISA_OP_RSC_reg        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     INPUT_CARRY_FLAG|REG_FLAG, ALU_OP,
+     0, 0)
+INST(TST_reg, 0x01100000, 0x0ff00010, 0xf0000000, 0xf0000000,         /* SISA_OP_TST_reg        */
+     CONDN|CONDZ|CONDC,
+     DNA, DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, TEST_OP,
+     0, 0)
+INST(TEQ_reg, 0x01300000, 0x0ff00010, 0xf0000000, 0xf0000000,         /* SISA_OP_TEQ_reg        */
+     CONDN|CONDZ|CONDC,
+     DNA, DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, TEST_OP,
+     0, 0)
+INST(CMP_reg, 0x01500000, 0x0ff00010, 0xf0000000, 0xf0000000,         /* SISA_OP_CMP_reg        */
+     CONDN|CONDZ|CONDC|CONDV,
+     DNA, DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     REG_FLAG, CMP_OP,
+     0, 0)
+INST(CMN_reg, 0x01700000, 0x0ff00010, 0xf0000000, 0xf0000000,         /* SISA_OP_CMN_reg        */
+     CONDN|CONDZ|CONDC|CONDV,
+     DNA, DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     REG_FLAG, CMP_OP,
+     0, 0)
+INST(ORR_reg, 0x01800000, 0x0fe00010, 0xf0000000, 0xf0000000,         /* SISA_OP_ORR_reg        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, LOG_OP,
+     0, 0)
+// [cond] [0001 101x] ....[0000 0000 xxxx]
+INST(MOV_reg, 0x01a00000, 0x0fe00ff0, 0xf0000000, 0xf0000000,         /* SISA_OP_MOV_reg        */
+     CONDN|CONDZ|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(0,3), DNA, DNA, DNA,
+     REG_FLAG, MOV_OP,
+     0, 0)
+// [cond] [0001 101x] ... [x000 xxxx]
+INST(LSL_imm, 0x01a00000, 0x0fe00070, 0xf0000000, 0xf0000000,         /* SISA_OP_LSL_imm        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(0,3), DSHFTIMM(7,11,5,6), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, MOV_OP,
+     0, 0)
+INST(LSR_imm, 0x01a00020, 0x0fe00070, 0xf0000000, 0xf0000000,         /* SISA_OP_LSR_imm        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(0,3), DSHFTIMM(7,11,5,6), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, MOV_OP,
+     0, 0)
+INST(ASR_imm, 0x01a00040, 0x0fe00070, 0xf0000000, 0xf0000000,         /* SISA_OP_ASR_imm        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(0,3), DSHFTIMM(7,11,5,6), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, MOV_OP,
+     0, 0)
+INST(RRX_imm, 0x01a00060, 0x0fe00ff0, 0xf0000000, 0xf0000000,         /* SISA_OP_RRX_imm        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(0,3), DSHFTIMM(7,11,5,6), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG, MOV_OP,
+     0, 0)
+INST(ROR_imm, 0x01a00060, 0x0fe00070, 0xf0000000, 0xf0000000,         /* SISA_OP_ROR_imm        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(0,3), DSHFTIMM(7,11,5,6), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, MOV_OP,
+     0, 0)
+INST(BIC_reg, 0x01c00000, 0x0fe00010, 0xf0000000, 0xf0000000,         /* SISA_OP_BIC_reg        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, LOG_OP,
+     0, 0)
+INST(MVN_reg, 0x01e00000, 0x0fe00010, 0xf0000000, 0xf0000000,         /* SISA_OP_MVN_reg        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(0,3), DSHFTIMM(7,11,5,6), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, MOV_OP,
+     0, 0)
+
+TAIL(X0_4_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_X0_4_END       */
+
+CONNECT(X0_5)                                                         /* SISA_OP_X0_5_CONNECT   */
+/* connect A5.2.2, A5.2.6 */
+LINK(X0_5_0, 0x00000010, 0x0e000090, 0xf0000000, 0xf0000000)          /* SISA_OP_X0_5_0         */
+/* connect A5.2.8, A5.2.9 */
+LINK(X0_5_1, 0x00000090, 0x0e000090, 0xf0000000, 0xf0000000)          /* SISA_OP_X0_5_1         */
+
+TAIL(X0_5_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_X0_5_END       */
+
+CONNECT(X0_5_0)                                                       /* SISA_OP_X0_5_0_CONNECT */
+/* A5.2.2 Data processing (register-shift register) */
+INST(AND_rsh, 0x00000010, 0x0fe00090, 0xf0000000, 0xf0000000,         /* SISA_OP_AND_rsh        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTGPR(8,11,5,6), DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SFT_REG_FLAG, LOG_OP,
+     0, 0)
+INST(EOR_rsh, 0x00200010, 0x0fe00090, 0xf0000000, 0xf0000000,         /* SISA_OP_EOR_rsh        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTGPR(8,11,5,6), DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SFT_REG_FLAG, LOG_OP,
+     0, 0)
+INST(SUB_rsh, 0x00400010, 0x0fe00090, 0xf0000000, 0xf0000000,         /* SISA_OP_SUB_rsh        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTGPR(8,11,5,6), DNA,
+     SFT_REG_FLAG, ALU_OP,
+     0, 0)
+INST(RSB_rsh, 0x00600010, 0x0fe00090, 0xf0000000, 0xf0000000,         /* SISA_OP_RSB_rsh        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTGPR(8,11,5,6), DNA,
+     SFT_REG_FLAG, ALU_OP,
+     0, 0)
+INST(ADD_rsh, 0x00800010, 0x0fe00090, 0xf0000000, 0xf0000000,         /* SISA_OP_ADD_rsh        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTGPR(8,11,5,6), DNA,
+     SFT_REG_FLAG, ALU_OP,
+     0, 0)
+INST(ADC_rsh, 0x00a00010, 0x0fe00090, 0xf0000000, 0xf0000000,         /* SISA_OP_ADC_rsh        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTGPR(8,11,5,6), DNA,
+     INPUT_CARRY_FLAG|SFT_REG_FLAG, ALU_OP,
+     0, 0)
+INST(SBC_rsh, 0x00c00010, 0x0fe00090, 0xf0000000, 0xf0000000,         /* SISA_OP_SBC_rsh        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTGPR(8,11,5,6), DNA,
+     INPUT_CARRY_FLAG|SFT_REG_FLAG, ALU_OP,
+     0, 0)
+INST(RSC_rsh, 0x00e00010, 0x0fe00090, 0xf0000000, 0xf0000000,         /* SISA_OP_RSC_rsh        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTGPR(8,11,5,6), DNA,
+     INPUT_CARRY_FLAG|SFT_REG_FLAG, ALU_OP,
+     0, 0)
+INST(TST_rsh, 0x01100010, 0x0ff00090, 0xf0000000, 0xf0000000,         /* SISA_OP_TST_rsh        */
+     CONDN|CONDZ|CONDC,
+     DNA, DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTGPR(8,11,5,6), DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SFT_REG_FLAG, TEST_OP,
+     0, 0)
+INST(TEQ_rsh, 0x01300010, 0x0ff00090, 0xf0000000, 0xf0000000,         /* SISA_OP_TEQ_rsh        */
+     CONDN|CONDZ|CONDC,
+     DNA, DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTGPR(8,11,5,6), DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SFT_REG_FLAG, TEST_OP,
+     0, 0)
+INST(CMP_rsh, 0x01500010, 0x0ff00090, 0xf0000000, 0xf0000000,         /* SISA_OP_CMP_rsh        */
+     CONDN|CONDZ|CONDC|CONDV,
+     DNA, DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTGPR(8,11,5,6), DNA,
+     SFT_REG_FLAG, CMP_OP,
+     0, 0)
+INST(CMN_rsh, 0x01700010, 0x0ff00090, 0xf0000000, 0xf0000000,         /* SISA_OP_CMN_rsh        */
+     CONDN|CONDZ|CONDC|CONDV,
+     DNA, DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTGPR(8,11,5,6), DNA,
+     SFT_REG_FLAG, CMP_OP,
+     0, 0)
+INST(ORR_rsh, 0x01800010, 0x0fe00090, 0xf0000000, 0xf0000000,         /* SISA_OP_ORR_rsh        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTGPR(8,11,5,6), DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SFT_REG_FLAG, LOG_OP,
+     0, 0)
+INST(LSL_reg, 0x01a00010, 0x0fe000f0, 0xf0000000, 0xf0000000,         /* SISA_OP_LSL_reg        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(0,3), DSHFTGPR(8,11,5,6), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, MOV_OP,
+     0, 0)
+INST(LSR_reg, 0x01a00030, 0x0fe000f0, 0xf0000000, 0xf0000000,         /* SISA_OP_LSR_reg        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(0,3), DSHFTGPR(8,11,5,6), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, MOV_OP,
+     0, 0)
+INST(ASR_reg, 0x01a00050, 0x0fe000f0, 0xf0000000, 0xf0000000,         /* SISA_OP_ASR_reg        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(0,3), DSHFTGPR(8,11,5,6), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, MOV_OP,
+     0, 0)
+INST(ROR_reg, 0x01a00070, 0x0fe000f0, 0xf0000000, 0xf0000000,         /* SISA_OP_ROR_reg        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(0,3), DSHFTGPR(8,11,5,6), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, MOV_OP,
+     0, 0)
+INST(BIC_rsh, 0x01c00010, 0x0fe00090, 0xf0000000, 0xf0000000,         /* SISA_OP_BIC_rsh        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTGPR(8,11,5,6), DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SFT_REG_FLAG, LOG_OP,
+     0, 0)
+INST(MVN_rsh, 0x01e00010, 0x0fe00090, 0xf0000000, 0xf0000000,         /* SISA_OP_MVN_rsh        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(0,3), DSHFTGPR(8,11,5,6), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SFT_REG_FLAG, MOV_OP,
+     0, 0)
+
+TAIL(X0_5_0_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_X0_5_0_END     */
+
+CONNECT(X0_5_1)                                                       /* SISA_OP_X0_5_1_CONNECT */
+/* A5.2.8 Extra load/store instructions */
+//[cond] [010P U0W0] [<Rn> <Rt> xxxx] [1011 <Rm>]
+INST(STRH_reg, 0x000000b0, 0x0e5000f0, 0x00200000, 0x01200000,        /* SISA_OP_STRH_reg       */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DGPR(0,3), DSHFTIMM(26,27,26,27),
+     P_FLAG|U_FLAG|W_FLAG|OP_SIZE_HWORD_FLAG|ADDR_FORMAT_FLAG|REG_FLAG, ST_OP,
+     0, 0)
+INST(LDRH, 0x001000b0, 0x0e5000f0, 0xf0000000, 0xf0000000,            /* SISA_OP_LDRH           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(25,26,25,26), DNA,
+     P_FLAG|U_FLAG|W_FLAG|OP_SIZE_HWORD_FLAG|ADDR_FORMAT_FLAG|UNSIGNED_FLAG, LD_OP,
+     0, 0)
+//[cond] [010P U1W0] [<Rn> <Rt> xxxx] [1011 <Rm>]
+INST(STRH_imm, 0x004000b0, 0x0e5000f0, 0xf0000000, 0xf0000000,        /* SISA_OP_STRH_imm       */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DIMM_MERGE(8,11,0,3), DNA,
+     P_FLAG|U_FLAG|W_FLAG|OP_SIZE_HWORD_FLAG|SECOND_IMM_FLAG, ST_OP,
+     0, 0)
+INST(LDRH_imm, 0x005000b0, 0x0e5000f0, 0x000f0000, 0x000f0000,        /* SISA_OP_LDRH_imm       */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_MERGE(8,11,0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|OP_SIZE_HWORD_FLAG|SECOND_IMM_FLAG|UNSIGNED_FLAG, LD_OP,
+     0, 0)
+INST(LDRH_lit, 0x005f00b0, 0x0e5f00f0, 0xf0000000, 0xf0000000,        /* SISA_OP_LDRH_lit       */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_MERGE(8,11,0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|OP_SIZE_HWORD_FLAG|OP_LIT_FLAG|UNSIGNED_FLAG, LD_OP,
+     0, 0)
+//A8.6.68 P452
+//[cond] [000P U0W0] [<Rn> <Rt>] [xxxx 1101 <Rm>]
+INST(LDRD_reg, 0x000000d0, 0x0e5000f0, 0xf0000000, 0xf0000000,        /* SISA_OP_LDRD_reg       */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_DWORD_FLAG|REG_FLAG, LD_OP,
+     0, 0)
+INST(LDRSB, 0x001000d0, 0x0e5000f0, 0x00200000, 0x01200000,           /* SISA_OP_LDRSB          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0, 3), DSHFTIMM(26,27,26,27), DNA,
+     P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_BYTE_FLAG|SIGNED_FLAG, LD_OP,
+     0, 0)
+INST(LDRD_imm, 0x004000d0, 0x0e5000f0, 0x000f0000, 0x000f0000,        /* SISA_OP_LDRD_imm       */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_MERGE(8,11,0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|OP_SIZE_DWORD_FLAG|SECOND_IMM_FLAG, LD_OP,
+     0, 0)
+INST(LDRD_lit, 0x004f00d0, 0x0e5f00f0, 0xf0000000, 0xf0000000,        /* SISA_OP_LDRD_lit       */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_MERGE(8,11,0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|OP_SIZE_DWORD_FLAG|OP_LIT_FLAG, LD_OP,
+     0, 0)
+INST(LDRSB_imm, 0x005000d0, 0x0e5000f0, 0x000f0000, 0x000f0000,       /* SISA_OP_LDRSB_imm      */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_MERGE(8,11,0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|OP_SIZE_BYTE_FLAG|SIGNED_FLAG|SECOND_IMM_FLAG, LD_OP,
+     0, 0)
+INST(LDRSB_lit, 0x005f00d0, 0x0e5f00f0, 0xf0000000, 0xf0000000,       /* SISA_OP_LDRSB_lit      */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_MERGE(8,11,0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|OP_SIZE_BYTE_FLAG|SIGNED_FLAG|OP_LIT_FLAG, LD_OP,
+     0, 0)
+//[cond][000P U0W0][<Rn><Rt>] [xxxx 1111 <Rm>]
+INST(STRD_reg, 0x000000f0, 0x0e5000f0, 0xf0000000, 0xf0000000,        /* SISA_OP_STRD_reg       */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DGPR(0,3), DNA,
+     ADDR_FORMAT_FLAG|P_FLAG|U_FLAG|W_FLAG|OP_SIZE_DWORD_FLAG|REG_FLAG, ST_OP,
+     0, 0)
+INST(LDRSH, 0x001000f0, 0x0e5000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_LDRSH          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(26,27,26,27), DNA,
+     P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_HWORD_FLAG|SIGNED_FLAG, LD_OP,
+     0, 0)
+INST(STRD_imm, 0x004000f0, 0x0e5000f0, 0xf0000000, 0xf0000000,        /* SISA_OP_STRD_imm       */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DIMM_MERGE(8,11,0,3), DNA,
+     P_FLAG|U_FLAG|W_FLAG|OP_SIZE_DWORD_FLAG|SECOND_IMM_FLAG, ST_OP,
+     0, 0)
+INST(LDRSH_imm, 0x005000f0, 0x0e5000f0, 0x000f0000, 0x000f0000,       /* SISA_OP_LDRSH_imm      */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_MERGE(8,11,0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|OP_SIZE_HWORD_FLAG|SIGNED_FLAG|SECOND_IMM_FLAG, LD_OP,
+     0, 0)
+INST(LDRSH_lit, 0x005f00f0, 0x0e5f00f0, 0xf0000000, 0xf0000000,       /* SISA_OP_LDRSH_lit      */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_MERGE(8,11,0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|OP_SIZE_HWORD_FLAG|SIGNED_FLAG|OP_LIT_FLAG, LD_OP,
+     0, 0)
+
+/* A5.2.9 Extra load/store instructions (unprivileged) */
+INST(STRHT_a1, 0x006000b0, 0x0f7000f0, 0xf0000000, 0xf0000000,        /* SISA_OP_STRHT_a1       */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DIMM_MERGE(8,11,0,3), DNA,
+     P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG|REG_FLAG|OP_SIZE_HWORD_FLAG, ST_OP,
+     0, 0)
+INST(STRHT_a2, 0x002000b0, 0x0f7000f0, 0xf0000000, 0xf0000000,        /* SISA_OP_STRHT_a2       */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DGPR(0,3), DNA,
+     P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG|REG_FLAG|OP_SIZE_HWORD_FLAG, ST_OP,
+     0, 0)
+INST(LDRHT_a1, 0x007000b0, 0x0f7000f0, 0xf0000000, 0xf0000000,        /* SISA_OP_LDRHT_a1       */
+     NCOND,
+     DGPR(12,15),DNA,
+     DGPR(16,19), DIMM_MERGE(8,11,0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_HWORD_FLAG|UNSIGNED_FLAG, LD_OP,
+     0, 0)
+INST(LDRHT_a2, 0x003000b0, 0x0f7000f0, 0xf0000000, 0xf0000000,        /* SISA_OP_LDRHT_a2       */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_HWORD_FLAG|UNSIGNED_FLAG, LD_OP,
+     0, 0)
+INST(LDRSBT_a1, 0x007000d0, 0x0f7000f0, 0xf0000000, 0xf0000000,       /* SISA_OP_LDRSBT_a1      */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_MERGE(8,11,0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_BYTE_FLAG|SIGNED_FLAG, LD_OP,
+     0, 0)
+INST(LDRSBT_a2, 0x003000d0, 0x0f7000f0, 0xf0000000, 0xf0000000,       /* SISA_OP_LDRSBT_a2      */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_BYTE_FLAG|SIGNED_FLAG, LD_OP,
+     0, 0)
+INST(LDRSHT_a1, 0x007000f0, 0x0f7000f0, 0xf0000000, 0xf0000000,       /* SISA_OP_LDRSHT_a1      */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_MERGE(8,11,0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_HWORD_FLAG|SIGNED_FLAG, LD_OP,
+     0, 0)
+INST(LDRSHT_a2, 0x003000f0, 0x0f7000f0, 0xf0000000, 0xf0000000,       /* SISA_OP_LDRSHT_a2      */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_HWORD_FLAG|SIGNED_FLAG, LD_OP,
+     0, 0)
+
+TAIL(X0_5_1_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_X0_5_1_END     */
+
+
+CONNECT(X2)                                                           /* SISA_OP_X2_CONNECT     */
+/* A5.2.3 Data-processing (immediate) */
+INST(AND_imm, 0x02000000, 0x0fe00000, 0xf0000000, 0xf0000000,         /* SISA_OP_AND_imm        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, LOG_OP,
+     0, 0)
+INST(EOR_imm, 0x02200000, 0x0fe00000, 0xf0000000, 0xf0000000,         /* SISA_OP_EOR_imm        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, LOG_OP,
+     0, 0)
+INST(SUB_imm, 0x02400000, 0x0fe00000, 0x000f0000, 0x001f0000,         /* SISA_OP_SUB_imm        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     SECOND_IMM_FLAG, ALU_OP,
+     0, 0)
+//[cond] [0010 0100] [<PC=1111b> <Rd> ] [<Imm12>]
+INST(ADR_a2, 0x024f0000, 0x0fff0000, 0xf0000000, 0xf0000000,          /* SISA_OP_ADR_a2         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     OP_LIT_FLAG, MISC_OP,
+     0, 0)
+INST(RSB_imm, 0x02600000, 0x0fe00000, 0xf0000000, 0xf0000000,         /* SISA_OP_RSB_imm        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     SECOND_IMM_FLAG, ALU_OP,
+     0, 0)
+INST(ADD_imm, 0x02800000, 0x0fe00000, 0x000f0000, 0x001f0000,         /* SISA_OP_ADD_imm        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     SECOND_IMM_FLAG, ALU_OP,
+     0, 0)
+//[cond] [0010 1000] [<PC=1111b> <Rd> ] [<Imm12>]
+INST(ADR_a1, 0x028f0000, 0x0fff0000, 0xf0000000, 0xf0000000,          /* SISA_OP_ADR_a1         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     OP_LIT_FLAG, MISC_OP,
+     0, 0)
+INST(ADC_imm, 0x02a00000, 0x0fe00000, 0xf0000000, 0xf0000000,         /* SISA_OP_ADC_imm        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     INPUT_CARRY_FLAG|SECOND_IMM_FLAG, ALU_OP,
+     0, 0)
+INST(SBC_imm, 0x02c00000, 0x0fe00000, 0xf0000000, 0xf0000000,         /* SISA_OP_SBC_imm        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     INPUT_CARRY_FLAG|SECOND_IMM_FLAG, ALU_OP,
+     0, 0)
+INST(RSC_imm, 0x02e00000, 0x0fe00000, 0xf0000000, 0xf0000000,         /* SISA_OP_RSC_imm        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     INPUT_CARRY_FLAG|SECOND_IMM_FLAG, ALU_OP,
+     0, 0)
+INST(TST_imm, 0x03100000, 0x0ff00000, 0xf0000000, 0xf0000000,         /* SISA_OP_TST_imm        */
+     CONDN|CONDZ|CONDC,
+     DNA, DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, TEST_OP,
+     0, 0)
+INST(TEQ_imm, 0x03300000, 0x0ff00000, 0xf0000000, 0xf0000000,         /* SISA_OP_TEQ_imm        */
+     CONDN|CONDZ|CONDC,
+     DNA, DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, TEST_OP,
+     0, 0)
+INST(CMP_imm, 0x03500000, 0x0ff00000, 0xf0000000, 0xf0000000,         /* SISA_OP_CMP_imm        */
+     CONDN|CONDZ|CONDC|CONDV,
+     DNA, DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     SECOND_IMM_FLAG, CMP_OP,
+     0, 0)
+INST(CMN_imm, 0x03700000, 0x0ff00000, 0xf0000000, 0xf0000000,         /* SISA_OP_CMN_imm        */
+     CONDN|CONDZ|CONDC|CONDV,
+     DNA, DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     SECOND_IMM_FLAG, CMP_OP,
+     0, 0)
+INST(ORR_imm, 0x03800000, 0x0fe00000, 0xf0000000, 0xf0000000,         /* SISA_OP_ORR_imm        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, LOG_OP,
+     0, 0)
+INST(MOV_imm_a1, 0x03a00000, 0x0fe00000, 0xf0000000, 0xf0000000,      /* SISA_OP_MOV_imm_a1     */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DIMM_ARMEXP(0,11,8), DNA, DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, MOV_OP,
+     0, 0)
+//[cond][0011 0000] [<Imm_high4> <Rd>] [<Imm_low12>] A8.6.96 16bit MOV (immediate)
+INST(MOV_imm_a2, 0x03000000, 0x0ff00000, 0xf0000000, 0xf0000000,      /* SISA_OP_MOV_imm_a2     */
+     NCOND,
+     DGPR(12,15), DNA,
+     DIMM_MERGE(16,19,0,11), DNA, DNA, DNA,
+     SECOND_IMM_FLAG, MOV_OP,
+     0, 0)
+INST(BIC_imm, 0x03c00000, 0x0fe00000, 0xf0000000, 0xf0000000,         /* SISA_OP_BIC_imm        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM_ARMEXP(0,11,8), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, LOG_OP,
+     0, 0)
+INST(MVN_imm, 0x03e00000, 0x0fe00000, 0xf0000000, 0xf0000000,         /* SISA_OP_MVN_imm        */
+     CONDN|CONDZ|CONDC|CONDS(20),
+     DGPR(12,15), DNA,
+     DIMM_ARMEXP(0,11,8), DNA, DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, MOV_OP,
+     0, 0)
+
+/* A5.2.11 MSR(immediate), and hints, those are ARMv7 new instructions for SMP and spinlocks */
+INST(NOP, 0x0320f000, 0x0fffffff, 0xf0000000, 0xf0000000,             /* SISA_OP_NOP            */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, EMPTY_OP,
+     0, 0)
+INST(YIELD, 0x0320f001, 0x0fffffff, 0xf0000000, 0xf0000000,           /* SISA_OP_YIELD          */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, EMPTY_OP,
+     0, 0)
+INST(WFE, 0x0320f002, 0x0fffffff, 0xf0000000, 0xf0000000,             /* SISA_OP_WFE            */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, EMPTY_OP,
+     0, 0)
+INST(WFI, 0x0320f003, 0x0fffffff, 0xf0000000, 0xf0000000,             /* SISA_OP_WFI            */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, EMPTY_OP,
+     0, 0)
+INST(SEV, 0x0320f004, 0x0fffffff, 0xf0000000, 0xf0000000,             /* SISA_OP_SEV            */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, EMPTY_OP,
+     0, 0)
+INST(DBG, 0x0320f0f0, 0x0ffffff0, 0xf0000000, 0xf0000000,             /* SISA_OP_DBG            */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, EMPTY_OP,
+     0, 0)
+/* this covers move to special register, application level */
+//  [cond] [0011 0010] [xx00 xxxx]
+//![cond] [xxxx xxxx] [0000 xxxx] [imm12]
+INST(MSR_imm_a, 0x03200000, 0x0ff30000, 0x00000000, 0x000f0000,       /* SISA_OP_MSR_imm_a      */
+     CONDN|CONDZ|CONDC|CONDV,
+     DNA, DNA,
+     DIMM_ARMEXP(0,11,8), DIMM(18,19), DNA, DNA,
+     GE_FLAG | SECOND_IMM_FLAG, SR_OP,
+     0, 0)
+/* this covers move to special register, system level */
+//  [cond] [0011 0x10] [xxxx xxxx]
+INST(MSR_imm_s, 0x03200000, 0x0fb00000, 0xf0000000, 0xf0000000,       /* SISA_OP_MSR_imm_s      */
+     CONDN|CONDZ|CONDC|CONDV,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     GE_FLAG | SECOND_IMM_FLAG, NO_OP,
+     0, 0)
+
+/* A5.2 misc instructions */
+INST(MOVT, 0x03400000, 0x0ff00000, 0xf0000000, 0xf0000000,            /* SISA_OP_MOVT           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DIMM_MERGE(16,19,0,11), DNA, DNA, DNA,
+     NONE_FLAG, MISC_OP,
+     0, 0)
+
+TAIL(X2_END, 0x0, 0x0, 0x0, 0x0)                                      /* SISA_OP_X2_END         */
+
+CONNECT(X4)                                                           /* SISA_OP_X4_CONNECT     */
+//A5.3 Load/store word and unsigned byte
+//[cond] [010x xxxx] imm, Unprivileged
+LINK(X4_0, 0x04000000, 0x0e000000, 0xf0000000, 0xf0000000)            /* SISA_OP_X4_0           */
+//[cond] [011x xxxx] [x x x] [xxx0 xxxx]  reg, Unprivileged
+LINK(X4_21, 0x06000000, 0x0e000010, 0xf0000000, 0xf0000000)           /* SISA_OP_X4_21          */
+
+//Medias
+//[cond] [0110 000x] [x x x] [xxx1 xxxx]
+LINK(X4_201, 0x06000010, 0x0fc00010, 0xf0000000, 0xf0000000)          /* SISA_OP_X4_201         */
+//[cond] [0110 010x] [x x x] [xxx1 xxxx]
+LINK(X4_241, 0x06400010, 0x0fc00010, 0xf0000000, 0xf0000000)          /* SISA_OP_X4_241         */
+//[cond] [0100 1xxx] [x x x] [xxx1 xxxx]
+LINK(X4_281, 0x06800010, 0x0f800010, 0xf0000000, 0xf0000000)          /* SISA_OP_X4_281         */
+//[cond] [0111 0xxx] [x x x] [xxx1 xxxx]
+LINK(X4_301, 0x07000010, 0x0f800010, 0xf0000000, 0xf0000000)          /* SISA_OP_X4_301         */
+
+/* A5.4 Media instructions */
+INST(USAD8, 0x0780f010, 0x0ff0f0f0, 0xf0000000, 0xf0000000,           /* SISA_OP_USAD8          */
+     NCOND,
+     DGPR(16,19), DNA,
+     DGPR(0,3), DGPR(8,11), DNA, DNA,
+     NONE_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(USADA8, 0x07800010, 0x0ff000f0, 0x0000f000, 0x0000f000,          /* SISA_OP_USADA8         */
+     NCOND,
+     DGPR(16,19), DNA,
+     DGPR(0,3), DGPR(8,11), DGPR(12,15), DNA,
+     NONE_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(SBFX, 0x07a00050, 0x0fe00070, 0xf0000000, 0xf0000000,            /* SISA_OP_SBFX           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(0,3), DIMM(7,11), DIMM(16,20), DNA,
+     NONE_FLAG, BF_OP,
+     0, 0)
+INST(BFC, 0x07c0001f, 0x0fe0007f, 0xf0000000, 0xf0000000,             /* SISA_OP_BFC            */
+     NCOND,
+     DGPR(12,15), DNA,
+     DIMM(16,20), DIMM(7,11), DNA, DNA,
+     NONE_FLAG, BF_OP,
+     0, 0)
+INST(BFI, 0x07c00010, 0x0fe00070, 0x0000000f, 0x0000000f,             /* SISA_OP_BFI            */
+     NCOND,
+     DGPR(12,15), DNA,
+     DIMM(16,20), DIMM(7,11), DGPR(0,3), DNA,
+     NONE_FLAG, BF_OP,
+     0, 0)
+INST(UBFX, 0x07e00050, 0x0fe00070, 0xf0000000, 0xf0000000,            /* SISA_OP_UBFX           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(0,3), DIMM(7,11), DIMM(16,20), DNA,
+     NONE_FLAG, BF_OP,
+     0, 0)
+
+TAIL(X4_END, 0x0, 0x0, 0x0, 0x0)                                      /* SISA_OP_X4_END         */
+
+CONNECT(X4_0)                                                         /* SISA_OP_X4_0_CONNECT   */
+/* A5.3 Load/store word and unsigned byte, Part 1*/
+///TODO: Wrong cg function, fix it later
+//[cond] [0100 1001] [<SP=1101b> <Rt>] [imm12=0000 0000 0100b]
+INST(POP_a2, 0x049d0004, 0x0fff0fff, 0xf0000000, 0xf0000000,          /* SISA_OP_POP_a2         */
+     NCOND,
+     DGPR_SET(12,15), DNA,
+     DGPR(16,19), DIMM(0,11),DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG, POP_OP,
+     0, 0)
+///TODO: Wrong cg function, fix it later
+//[cond] [0101 0010] [<SP=1101b> <Rt>] [0000 0000 0100]
+INST(PUSH_a2, 0x052d0004, 0x0fff0fff, 0xf0000000, 0xf0000000,         /* SISA_OP_PUSH_a2        */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DIMM(0,11), DNA,
+     P_FLAG|U_FLAG|W_FLAG, PUSH_OP,
+     0, 0)
+// [cond] [010P U0W0] [<Rn> <Rt>] [<Imm12>] <!(P=0 & W=1)>
+INST(STR_imm, 0x04000000, 0x0e500000, 0x00200000, 0x01700000,         /* SISA_OP_STR_imm        */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DIMM(0,11), DNA,
+     P_FLAG|U_FLAG|W_FLAG|SECOND_IMM_FLAG, ST_OP,
+     0, 0)
+// [cond] [0100 x010]
+INST(STRT_a1, 0x04200000, 0x0f700000, 0xf0000000, 0xf0000000,         /* SISA_OP_STRT_a1        */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DIMM(0,11), DNA,
+     P_FLAG|U_FLAG|W_FLAG, ST_OP,
+     0, 0)
+// [cond] [010x U0x1] [<PC=1111b> <Rt>] [<Imm12>]
+INST(LDR_lit, 0x041f0000, 0x0e5f0000, 0x00300000, 0x01700000,         /* SISA_OP_LDR_lit        */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM(0,11), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|OP_LIT_FLAG, LD_OP,
+     0, 0)
+// [cond] [010x x0x1]   ![xxxx] [xxx0 x011]
+INST(LDR_imm, 0x04100000, 0x0e500000, 0x00300000, 0x01700000,         /* SISA_OP_LDR_imm        */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM(0,11), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|SECOND_IMM_FLAG, LD_OP,
+     0, 0)
+INST(LDRT_a1, 0x04300000, 0x0f700000, 0xf0000000, 0xf0000000,         /* SISA_OP_LDRT_a1        */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM(0,11), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG, LD_OP,
+     0, 0)
+INST(STRB_imm, 0x04400000, 0x0e500000, 0x00600000, 0x01700000,        /* SISA_OP_STRB_imm       */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DIMM(0,11), DNA,
+     OP_SIZE_BYTE_FLAG|P_FLAG|U_FLAG|W_FLAG|SECOND_IMM_FLAG, ST_OP,
+     0, 0)
+//[cond] [0100 x110]
+INST(STRBT_a1, 0x04600000, 0x0f700000, 0xf0000000, 0xf0000000,        /* SISA_OP_STRBT_a1       */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DIMM(0,11), DNA,
+     OP_SIZE_BYTE_FLAG|P_FLAG|U_FLAG|W_FLAG, ST_OP,
+     0, 0)
+INST(LDRB_lit, 0x045f0000, 0x0e5f0000, 0x00700000, 0x01700000,        /* SISA_OP_LDRB_lit       */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM(0,11), DNA, DNA,
+     OP_SIZE_BYTE_FLAG|P_FLAG|U_FLAG|W_FLAG|OP_LIT_FLAG|UNSIGNED_FLAG, LD_OP,
+     0, 0)
+INST(LDRB_imm, 0x04500000, 0x0e500000, 0x00700000, 0x01700000,        /* SISA_OP_LDRB_imm       */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM(0,11), DNA, DNA,
+     OP_SIZE_BYTE_FLAG|P_FLAG|U_FLAG|W_FLAG|SECOND_IMM_FLAG|UNSIGNED_FLAG, LD_OP,
+     0, 0)
+///TODO: Unprivileged load, to fix it later
+INST(LDRBT_a1, 0x04700000, 0x0f700000, 0xf0000000, 0xf0000000,        /* SISA_OP_LDRBT_a1       */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DIMM(0,11), DNA, DNA,
+     OP_SIZE_BYTE_FLAG|P_FLAG|U_FLAG|W_FLAG|UNSIGNED_FLAG, LD_OP,
+     0, 0)
+
+TAIL(X4_0_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_X4_0_END       */
+
+CONNECT(X4_21)                                                        /* SISA_OP_X4_21_CONNECT  */
+/* A5.3 Load/store word and unsigned byte, Part 2*/
+//[cond] [011x x0x0] ST_OP?? NO_OP??
+INST(STR_reg, 0x06000000, 0x0e500010, 0x00200000, 0x01700000,         /* SISA_OP_STR_reg        */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6),
+     ADDR_FORMAT_FLAG|P_FLAG|U_FLAG|W_FLAG|REG_FLAG, ST_OP,
+     0, 0)
+///TODO: to fix it later
+INST(STRT_a2, 0x06200000, 0x0f700010, 0xf0000000, 0xf0000000,         /* SISA_OP_STRT_a2        */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6),
+     ADDR_FORMAT_FLAG|P_FLAG|U_FLAG|W_FLAG, ST_OP,
+     0, 0)
+//[cond] [011x x0x1]
+INST(LDR_reg, 0x06100000, 0x0e500010, 0x00300000, 0x01700000,         /* SISA_OP_LDR_reg        */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     ADDR_FORMAT_FLAG|P_FLAG|U_FLAG|W_FLAG|REG_FLAG, LD_OP,
+     0, 0)
+///TODO: Unprivileged load, to fix it later
+INST(LDRT_a2, 0x06300000, 0x0f700010, 0xf0000000, 0xf0000000,         /* SISA_OP_LDRT_a2        */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG, LD_OP,
+     0, 0)
+INST(STRB_reg, 0x06400000, 0x0e500010, 0x00600000, 0x01700000,        /* SISA_OP_STRB_reg       */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6),
+     OP_SIZE_BYTE_FLAG|P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG|REG_FLAG, ST_OP,
+     0, 0)
+///TODO: to fix it later [cond] [0110 x110]
+INST(STRBT_a2, 0x06600000, 0x0f700010, 0xf0000000, 0xf0000000,        /* SISA_OP_STRBT_a2       */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15), DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6),
+     ADDR_FORMAT_FLAG|OP_SIZE_BYTE_FLAG|P_FLAG|U_FLAG|W_FLAG, ST_OP,
+     0, 0)
+//  [cond] [011P U1W1] [<Rn> <Rt>] [<Imm5><type2>0 <Rm>]   //! (P ==0 & W==1)
+INST(LDRB_reg, 0x06500000, 0x0e500010, 0x00700000, 0x01700000,        /* SISA_OP_LDRB_reg       */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     OP_SIZE_BYTE_FLAG|P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG|REG_FLAG|UNSIGNED_FLAG, LD_OP,
+     0, 0)
+///TODO: Unprivileged load, to fix it later
+INST(LDRBT_a2, 0x06700000, 0x0f700010, 0xf0000000, 0xf0000000,        /* SISA_OP_LDRBT_a2       */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     OP_SIZE_BYTE_FLAG|P_FLAG|U_FLAG|W_FLAG|ADDR_FORMAT_FLAG|UNSIGNED_FLAG, LD_OP,
+     0, 0)
+
+TAIL(X4_21_END, 0x0, 0x0, 0x0, 0x0)                                   /* SISA_OP_X4_21_END      */
+
+CONNECT(X4_201)                                                       /* SISA_OP_X4_201_CONNECT */
+LINK(X4_201_1, 0x06100010, 0x0ff00010, 0xf0000000, 0xf0000000)
+LINK(X4_201_2, 0x06200010, 0x0ff00010, 0xf0000000, 0xf0000000)        /* SISA_OP_X4_201_2       */
+
+/* A5.4.1 Parallel addition and subtraction, signed */
+INST(SHADD16, 0x06300010, 0x0ff000f0, 0xf0000000, 0xf0000000,         /* SISA_OP_SHADD16        */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, S_BYTE_ALU_OP,
+     0, 0)
+INST(SHASX, 0x06300030, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_SHASX          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, S_BYTE_ALU_OP,
+     0, 0)
+INST(SHSAX, 0x06300050, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_SHSAX          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, S_BYTE_ALU_OP,
+     0, 0)
+INST(SHSUB16, 0x06300070, 0x0ff000f0, 0xf0000000, 0xf0000000,         /* SISA_OP_SHSUB16        */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, S_BYTE_ALU_OP,
+     0, 0)
+INST(SHADD8, 0x06300090, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_SHADD8         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, S_BYTE_ALU_OP,
+     0, 0)
+INST(SHSUB8, 0x063000f0, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_SHSUB8         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, S_BYTE_ALU_OP,
+     0, 0)
+
+TAIL(X4_201_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_X4_201_END     */
+
+CONNECT(X4_201_1)                                                     /* SISA_OP_X4_201_1_CONNECT */
+/* A5.4.1 Parallel addition and subtraction, signed */
+INST(SADD16, 0x06100010, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_SADD16         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG | GE_FLAG, S_BYTE_ALU_OP,
+     0, 0)
+INST(SASX, 0x06100030, 0x0ff000f0, 0xf0000000, 0xf0000000,            /* SISA_OP_SASX           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG | GE_FLAG, S_BYTE_ALU_OP,
+     0, 0)
+INST(SSAX, 0x06100050, 0x0ff000f0, 0xf0000000, 0xf0000000,            /* SISA_OP_SSAX           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG | GE_FLAG, S_BYTE_ALU_OP,
+     0, 0)
+INST(SSUB16, 0x06100070, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_SSUB16         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG | GE_FLAG, S_BYTE_ALU_OP,
+     0, 0)
+INST(SADD8, 0x06100090, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_SADD8          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG | GE_FLAG, S_BYTE_ALU_OP,
+     0, 0)
+INST(SSUB8, 0x061000f0, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_SSUB8          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG | GE_FLAG, S_BYTE_ALU_OP,
+     0, 0)
+
+TAIL(X4_201_1_END, 0x0, 0x0, 0x0, 0x0)                                /* SISA_OP_X4_201_1_END   */
+
+CONNECT(X4_201_2)                                                     /* SISA_OP_X4_201_2_CONNECT */
+/* A5.4.1 Parallel addition and subtraction, signed */
+INST(QADD16, 0x06200010, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_QADD16         */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(QASX, 0x06200030, 0x0ff000f0, 0xf0000000, 0xf0000000,            /* SISA_OP_QASX           */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(QSAX, 0x06200050, 0x0ff000f0, 0xf0000000, 0xf0000000,            /* SISA_OP_QSAX           */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(QSUB16, 0x06200070, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_QSUB16         */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(QADD8, 0x06200090, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_QADD8          */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(QSUB8, 0x062000f0, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_QSUB8          */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+
+TAIL(X4_201_2_END, 0x0, 0x0, 0x0, 0x0)                                /* SISA_OP_X4_201_2_END   */
+
+CONNECT(X4_241)                                                       /* SISA_OP_X4_241_CONNECT */
+LINK(X4_241_1, 0x06500010, 0x0ff00010, 0xf0000000, 0xf0000000)
+LINK(X4_241_2, 0x06600010, 0x0ff00010, 0xf0000000, 0xf0000000)        /* SISA_OP_X4_241_2       */
+
+/* A5.4.1 Parallel addition and subtraction, signed */
+INST(UHADD16, 0x06700010, 0x0ff000f0, 0xf0000000, 0xf0000000,         /* SISA_OP_UHADD16        */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(UHASX, 0x06700030, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_UHASX          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(UHSAX, 0x06700050, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_UHSAX          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(UHSUB16, 0x06700070, 0x0ff000f0, 0xf0000000, 0xf0000000,         /* SISA_OP_UHSUB16        */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(UHADD8, 0x06700090, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_UHADD8         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(UHSUB8, 0x067000f0, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_UHSUB8         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+
+TAIL(X4_241_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_X4_241_END     */
+
+CONNECT(X4_241_1)                                                     /* SISA_OP_X4_241_1_CONNECT */
+/* A5.4.1 Parallel addition and subtraction, signed */
+INST(UADD16, 0x06500010, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_UADD16         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG | GE_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(UASX, 0x06500030, 0x0ff000f0, 0xf0000000, 0xf0000000,            /* SISA_OP_UASX           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG | GE_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(USAX, 0x06500050, 0x0ff000f0, 0xf0000000, 0xf0000000,            /* SISA_OP_USAX           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG | GE_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(USUB16, 0x06500070, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_USUB16         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG | GE_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(UADD8, 0x06500090, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_UADD8          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG | GE_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(USUB8, 0x065000f0, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_USUB8          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG | GE_FLAG, BYTE_ALU_OP,
+     0, 0)
+
+TAIL(X4_241_1_END, 0x0, 0x0, 0x0, 0x0)                                /* SISA_OP_X4_241_1_END   */
+
+CONNECT(X4_241_2)                                                     /* SISA_OP_X4_241_2_CONNECT */
+/* A5.4.1 Parallel addition and subtraction, signed */
+INST(UQADD16, 0x06600010, 0x0ff000f0, 0xf0000000, 0xf0000000,         /* SISA_OP_UQADD16        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(UQASX, 0x06600030, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_UQASX          */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(UQSAX, 0x06600050, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_UQSAX          */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(UQSUB16, 0x06600070, 0x0ff000f0, 0xf0000000, 0xf0000000,         /* SISA_OP_UQSUB16        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(UQADD8, 0x06600090, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_UQADD8         */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(UQSUB8, 0x066000f0, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_UQSUB8         */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+
+TAIL(X4_241_2_END, 0x0, 0x0, 0x0, 0x0)                                /* SISA_OP_X4_241_2_END   */
+
+CONNECT(X4_281)                                                       /* SISA_OP_X4_281_CONNECT */
+/* A5.4.3 Packing, unpacking, saturation, and reversal */
+INST(PKH, 0x06800010, 0x0ff00030, 0xf0000000, 0xf0000000,             /* SISA_OP_PKH            */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DSHFTIMM(7,11,5,6), DIMM(6,6),
+     NONE_FLAG, MISC_OP,
+     0, 0)
+INST(SSAT, 0x06a00010, 0x0fe00030, 0xf0000000, 0xf0000000,            /* SISA_OP_SSAT           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DIMM(16,20), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     SIGNED_FLAG, MISC_OP,
+     0, 0)
+INST(USAT, 0x06e00010, 0x0fe00030, 0xf0000000, 0xf0000000,            /* SISA_OP_USAT           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DIMM(16,20), DGPR(0,3), DSHFTIMM(7,11,5,6), DNA,
+     UNSIGNED_FLAG, EXT_OP,
+     0, 0)
+INST(SXTB16, 0x068f0070, 0x0fff00f0, 0xf0000000, 0xf0000000,          /* SISA_OP_SXTB16         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DROTATEGPR(0,3,10,11), DNA,DNA, DNA,
+     OP_SIZE_BYTE_FLAG|SIGNED_FLAG, EXT_OP,
+     0, 0)
+INST(SXTAB16, 0x06800070, 0x0ff000f0, 0x000f0000, 0x000f0000,         /* SISA_OP_SXTAB16        */
+     NCOND,
+     DGPR(12,15), DNA,
+     DROTATEGPR(0,3,10,11), DGPR(16,19), DNA, DNA,
+     OP_SIZE_BYTE_FLAG|SIGNED_FLAG, EXT_OP,
+     0, 0)
+INST(SEL, 0x068000b0, 0x0ff000f0, 0xf0000000, 0xf0000000,             /* SISA_OP_SEL            */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(16,19), DGPR(0,3), DNA, DNA,
+     USE_GE_FLAG | REG_FLAG, BYTE_ALU_OP,
+     0, 0)
+INST(SSAT16, 0x06a00030, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_SSAT16         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DIMM(16,19), DGPR(0,3),DNA, DNA,
+     SIGNED_FLAG, MISC_OP,
+     0, 0)
+INST(SXTB, 0x06af0070, 0x0fff00f0, 0xf0000000, 0xf0000000,            /* SISA_OP_SXTB           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DROTATEGPR(0,3,10,11), DNA, DNA, DNA,
+     OP_SIZE_BYTE_FLAG|SIGNED_FLAG, EXT_OP,
+     0, 0)
+INST(SXTAB, 0x06a00070, 0x0ff000f0, 0x000f0000, 0x000f0000,           /* SISA_OP_SXTAB          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DROTATEGPR(0,3,10,11), DGPR(16,19), DNA, DNA,
+     OP_SIZE_BYTE_FLAG|SIGNED_FLAG, EXT_OP,
+     0, 0)
+INST(REV, 0x06b00030, 0x0ff000f0, 0xf0000000, 0xf0000000,             /* SISA_OP_REV            */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(0,3),DNA, DNA, DNA,
+     NONE_FLAG, REVERSE_OP,
+     0, 0)
+INST(SXTH, 0x06bf0070, 0x0fff00f0, 0xf0000000, 0xf0000000,            /* SISA_OP_SXTH           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DROTATEGPR(0,3,10,11), DNA, DNA, DNA,
+     OP_SIZE_HWORD_FLAG|SIGNED_FLAG, EXT_OP,
+     0, 0)
+INST(SXTAH, 0x06b00070, 0x0ff000f0, 0x000f0000, 0x000f0000,           /* SISA_OP_SXTAH          */
+     NCOND,
+     DGPR(12,15), DNA,
+         DROTATEGPR(0,3,10,11), DGPR(16,19), DNA, DNA,
+     OP_SIZE_HWORD_FLAG|SIGNED_FLAG, EXT_OP,
+     0, 0)
+INST(REV16, 0x06b000b0, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_REV16          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(0,3),DNA, DNA, DNA,
+     NONE_FLAG, REVERSE_OP,
+     0, 0)
+INST(UXTB16, 0x06cf0070, 0x0fff00f0, 0xf0000000, 0xf0000000,          /* SISA_OP_UXTB16         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DROTATEGPR(0,3,10,11),DNA, DNA, DNA,
+     OP_SIZE_BYTE_FLAG|UNSIGNED_FLAG, EXT_OP,
+     0, 0)
+INST(UXTAB16, 0x06c00070, 0x0ff000f0, 0x000f0000, 0x000f0000,         /* SISA_OP_UXTAB16        */
+     NCOND,
+     DGPR(12,15), DNA,
+     DROTATEGPR(0,3,10,11), DGPR(16,19), DNA, DNA,
+     OP_SIZE_BYTE_FLAG|UNSIGNED_FLAG, EXT_OP,
+     0, 0)
+INST(USAT16, 0x06e00030, 0x0ff000f0, 0xf0000000, 0xf0000000,          /* SISA_OP_USAT16         */
+     NCOND,
+     DGPR(12,15), DNA,
+     DIMM(16,19), DGPR(0,3),DNA, DNA,
+     UNSIGNED_FLAG, EXT_OP,
+     0, 0)
+INST(UXTB, 0x06ef0070, 0x0fff00f0, 0xf0000000, 0xf0000000,            /* SISA_OP_UXTB           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DROTATEGPR(0,3,10,11),DNA, DNA, DNA,
+     OP_SIZE_BYTE_FLAG|UNSIGNED_FLAG, EXT_OP,
+     0, 0)
+INST(UXTAB, 0x06e00070, 0x0ff000f0, 0x000f0000, 0x000f0000,           /* SISA_OP_UXTAB          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DROTATEGPR(0,3,10,11), DGPR(16,19), DNA, DNA,
+     OP_SIZE_BYTE_FLAG|UNSIGNED_FLAG, EXT_OP,
+     0, 0)
+INST(RBIT, 0x06f00030, 0x0ff000f0, 0xf0000000, 0xf0000000,            /* SISA_OP_RBIT           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(0,3),DNA, DNA, DNA,
+     NONE_FLAG, REVERSE_OP,
+     0, 0)
+INST(UXTH, 0x06ff0070, 0x0fff00f0, 0xf0000000, 0xf0000000,            /* SISA_OP_UXTH           */
+     NCOND,
+     DGPR(12,15), DNA,
+     DROTATEGPR(0,3,10,11),DNA, DNA, DNA,
+     OP_SIZE_HWORD_FLAG|UNSIGNED_FLAG, EXT_OP,
+     0, 0)
+INST(UXTAH, 0x06f00070, 0x0ff000f0, 0x000f0000, 0x000f0000,           /* SISA_OP_UXTAH          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DROTATEGPR(0,3,10,11), DGPR(16,19), DNA, DNA,
+     OP_SIZE_HWORD_FLAG|UNSIGNED_FLAG, EXT_OP,
+     0, 0)
+INST(REVSH, 0x06f000b0, 0x0ff000f0, 0xf0000000, 0xf0000000,           /* SISA_OP_REVSH          */
+     NCOND,
+     DGPR(12,15), DNA,
+     DGPR(0,3),DNA, DNA, DNA,
+     NONE_FLAG, REVERSE_OP,
+     0, 0)
+
+TAIL(X4_281_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_X4_281_END     */
+
+CONNECT(X4_301)                                                       /* SISA_OP_X4_301_CONNECT */
+/* A5.4.4 Signed multiplies */
+INST(SMUAD, 0x0700f010, 0x0ff0f0d0, 0xf0000000, 0xf0000000,           /* SISA_OP_SMUAD          */
+     NCOND,
+     DGPR(16,19), DNA,
+     DGPR(0,3),DGPR(8,11), DNA, DNA,
+     REG_FLAG, SMULD_OP,
+     0, 0)
+INST(SMLAD, 0x07000010, 0x0ff000d0, 0x0000f000, 0x0000f000,           /* SISA_OP_SMLAD          */
+     NCOND,
+     DGPR(16,19), DNA,
+     DGPR(0,3),DGPR(8,11), DGPR(12,15), DNA,
+     REG_FLAG, SMULD_OP,
+     0, 0)
+INST(SMUSD, 0x0700f050, 0x0ff0f0d0, 0xf0000000, 0xf0000000,           /* SISA_OP_SMUSD          */
+     NCOND,
+     DGPR(16,19), DNA,
+     DGPR(0,3),DGPR(8,11), DNA, DNA,
+     REG_FLAG, SMULD_OP,
+     0, 0)
+INST(SMLSD, 0x07000050, 0x0ff000d0, 0x0000f000, 0x0000f000,           /* SISA_OP_SMLSD          */
+     NCOND,
+     DGPR(16,19), DNA,
+     DGPR(0,3),DGPR(8,11), DGPR(12,15), DNA,
+     REG_FLAG, SMULD_OP,
+     0, 0)
+INST(SMLALD, 0x07400010, 0x0ff000d0, 0xf0000000, 0xf0000000,          /* SISA_OP_SMLALD         */
+     NCOND,
+     DGPR(16,19), DGPR(12,15),
+     DGPR(0,3),DGPR(8,11), DNA, DNA,
+     REG_FLAG, SMULD_OP,
+     0, 0)
+INST(SMLSLD, 0x07400050, 0x0ff000d0, 0xf0000000, 0xf0000000,          /* SISA_OP_SMLSLD         */
+     NCOND,
+     DGPR(16,19), DGPR(12,15),
+     DGPR(0,3),DGPR(8,11), DNA, DNA,
+     REG_FLAG, SMULD_OP,
+     0, 0)
+INST(SMMUL, 0x0750f010, 0x0ff0f0d0, 0xf0000000, 0xf0000000,           /* SISA_OP_SMMUL          */
+     NCOND,
+     DGPR(16,19), DNA,
+     DGPR(0,3),DGPR(8,11), DNA, DNA,
+     REG_FLAG, SMUL_OP,
+     0, 0)
+INST(SMMLA, 0x07500010, 0x0ff000d0, 0x0000f000, 0x0000f000,           /* SISA_OP_SMMLA          */
+     NCOND,
+     DGPR(16,19), DNA,
+     DGPR(0,3),DGPR(8,11), DGPR(12,15), DNA,
+     REG_FLAG, SMUL_OP,
+     0, 0)
+INST(SMMLS, 0x075000d0, 0x0ff000d0, 0xf0000000, 0xf0000000,           /* SISA_OP_SMMLS          */
+     NCOND,
+     DGPR(16,19), DNA,
+     DGPR(0,3),DGPR(8,11), DGPR(12,15), DNA,
+     REG_FLAG, SMUL_OP,
+     0, 0)
+
+TAIL(X4_301_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_X4_301_END     */
+
+CONNECT(X8)                                                           /* SISA_OP_X8_CONNECT     */
+/* A5.5 Branch, branch with link, and block data transfer  */
+/* to be fixed gracefully due to registers are specified in register_list */
+
+INST(POP_a1, 0x08bd0000, 0x0fff0000, 0xf0000000, 0xf0000000,          /* SISA_OP_POP_a1         */
+     NCOND,
+     DGPR_LIST(0, 15), DNA,
+     DGPR(16,19),DNA, DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG, POP_OP,
+     0, 0)
+INST(PUSH_a1, 0x092d0000, 0x0fff0000, 0xf0000000, 0xf0000000,         /* SISA_OP_PUSH_a1        */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DGPR_LIST(0, 15), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG, PUSH_OP,
+     0, 0)
+INST(STMDA, 0x08000000, 0x0fd00000, 0xf0000000, 0xf0000000,           /* SISA_OP_STMDA          */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DGPR_LIST(0, 15), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG, STM_OP,
+     0, 0)
+INST(LDMDA, 0x08100000, 0x0fd00000, 0xf0000000, 0xf0000000,           /* SISA_OP_LDMDA          */
+     NCOND,
+     DGPR_LIST(0, 15), DNA,
+     DGPR(16,19),DNA, DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG, LDM_OP,
+     0, 0)
+INST(STM, 0x08800000, 0x0fd00000, 0xf0000000, 0xf0000000,             /* SISA_OP_STM            */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DGPR_LIST(0, 15), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG, STM_OP,
+     0, 0)
+INST(LDM, 0x08900000, 0x0fd00000, 0xf0000000, 0xf0000000,             /* SISA_OP_LDM            */
+     NCOND,
+     DGPR_LIST(0, 15), DNA,
+     DGPR(16,19),DNA, DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG, LDM_OP,
+     0, 0)
+INST(STMDB, 0x09000000, 0x0fd00000, 0xf0000000, 0xf0000000,           /* SISA_OP_STMDB          */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DGPR_LIST(0, 15), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG, STM_OP,
+     0, 0)
+INST(LDMDB, 0x09100000, 0x0fd00000, 0xf0000000, 0xf0000000,           /* SISA_OP_LDMDB          */
+     NCOND,
+     DGPR_LIST(0, 15), DNA,
+     DGPR(16,19),DNA, DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG, LDM_OP,
+     0, 0)
+INST(STMIB, 0x09800000, 0x0fd00000, 0xf0000000, 0xf0000000,           /* SISA_OP_STMIB          */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DGPR_LIST(0, 15), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG, STM_OP,
+     0, 0)
+INST(LDMIB, 0x09900000, 0x0fd00000, 0xf0000000, 0xf0000000,           /* SISA_OP_LDMIB          */
+     NCOND,
+     DGPR_LIST(0, 15), DNA,
+     DGPR(16,19),DNA, DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG, LDM_OP,
+     0, 0)
+INST(STM_ureg, 0x08400000, 0x0e500000, 0xf0000000, 0xf0000000,        /* SISA_OP_STM_ureg       */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DGPR_LIST(0, 15), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|REG_FLAG, SYS_OP,
+     0, 0)
+INST(LDM_ureg, 0x08500000, 0x0e508000, 0xf0000000, 0xf0000000,        /* SISA_OP_LDM_ureg       */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DGPR_LIST(0, 15), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG|REG_FLAG, SYS_OP,
+     0, 0)
+INST(LDM_expr, 0x08508000, 0x0e508000, 0xf0000000, 0xf0000000,        /* SISA_OP_LDM_expr       */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DGPR_LIST(0, 15), DNA, DNA,
+     P_FLAG|U_FLAG|W_FLAG, SYS_OP,
+     0, 0)
+INST(B_imm, 0x0a000000, 0x0f000000, 0xf0000000, 0xf0000000,           /* SISA_OP_B_imm          */
+     NCOND,
+     DNA, DNA,
+     DIMM_SIGN_EXTEND(0,23,0), DNA, DNA, DNA,
+     BR_DIR_FLAG|SECOND_IMM_FLAG, JMP_OP,
+     0, 0)
+INST(BL_imm_a1, 0x0b000000, 0x0f000000, 0xf0000000, 0xf0000000,       /* SISA_OP_BL_imm_a1      */
+     NCOND,
+     DNA, DNA,
+     DIMM_SIGN_EXTEND(0,23,0), DNA, DNA, DNA,
+     BLR_FLAG|P_FLAG|U_FLAG|W_FLAG|BR_DIR_FLAG|SECOND_IMM_FLAG, JMP_OP,
+     0, 0)
+
+TAIL(X8_END, 0x0, 0x0, 0x0, 0x0)                                      /* SISA_OP_X8_END         */
+
+CONNECT(XC)                                                           /* SISA_OP_XC_CONNECT     */
+INST(SVC, 0x0f000000, 0x0f000000, 0xf0000000, 0xf0000000,             /* SISA_OP_SVC            */
+     NCOND,
+     DNA, DNA,
+     DIMM(0,23),DNA, DNA, DNA,
+     REG_FLAG, MISC_OP,
+     0, 0)
+LINK(XC_A, 0x0c000a00, 0x0c000e00, 0xf0000000, 0xf0000000)
+/* A5.6 Supervisor Call, and coprocessor instructions*/
+//[cond][1110 <opc1>0] [<CRn> <Rt>>] [<coproc> <opc2>1 <CRm>]
+INST(MCR_reg, 0x0e000010, 0x0f100010, 0xf0000000, 0xf0000000,         /* SISA_OP_MCR_reg        */
+     NCOND,
+     DGPR(12,15), DNA,
+     DIMM(21,23), DGPR(16,19), DGPR(0,3), DIMM(5,7),
+     REG_FLAG, COPR_OP,
+     0, 0)
+INST(MRC_reg, 0x0e100010, 0x0f100010, 0xf0000000, 0xf0000000,         /* SISA_OP_MRC_reg        */
+     CONDN|CONDZ|CONDC|CONDV|CONDS(20),
+     DGPR(12,15), DNA,
+     DIMM(21,23), DGPR(16,19), DGPR(0,3), DIMM(5,7),
+     REG_FLAG, COPR_OP,
+     0, 0)
+INST(STC, 0x0c000000, 0x0e100000, 0x00000000, 0x03a00000,             /* SISA_OP_STC            */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19),DNA, DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+INST(LDC_lit, 0x0c1f0000, 0x0e1f0000, 0x00000000, 0x03a00000,         /* SISA_OP_LDC_lit        */
+     NCOND,
+     DNA, DNA,
+     DNA,DNA, DNA, DNA,
+     OP_LIT_FLAG, NO_OP,
+     0, 0)
+INST(LDC_imm, 0x0c100000, 0x0e100000, 0x00000000, 0x03a00000,         /* SISA_OP_LDC_imm        */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19),DNA, DNA, DNA,
+     SECOND_IMM_FLAG, NO_OP,
+     0, 0)
+INST(MCRR, 0x0c400000, 0x0ff00000, 0xf0000000, 0xf0000000,            /* SISA_OP_MCRR           */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15),DGPR(16,19), DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+INST(MRRC, 0x0c500000, 0x0ff00000, 0xf0000000, 0xf0000000,            /* SISA_OP_MRRC           */
+     NCOND,
+     DNA, DNA,
+     DGPR(12,15),DGPR(16,19), DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+INST(CDP, 0x0e000000, 0x0f000010, 0xf0000000, 0xf0000000,             /* SISA_OP_CDP            */
+     NCOND,
+     DNA, DNA,
+     DNA,DNA, DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+TAIL(XC_END, 0x0, 0x0, 0x0, 0x0)                                      /* SISA_OP_XC_END         */
+
+CONNECT(XC_A)                                                         /* SISA_OP_XC_A_CONNECT   */
+LINK(XC_A_0, 0x0c000a00, 0x0f000e00, 0xf0000000, 0xf0000000)
+LINK(XC_A_1, 0x0d000a00, 0x0f000e00, 0xf0000000, 0xf0000000)          /* SISA_OP_XC_A_1         */
+LINK(XC_A_20, 0x0e000a00, 0x0f000e10, 0xf0000000, 0xf0000000)
+LINK(XC_A_21, 0x0e000a10, 0x0f000e10, 0xf0000000, 0xf0000000)         /* SISA_OP_XC_A_21        */
+TAIL(XC_A_END, 0x0, 0x0, 0x0, 0x0)
+
+CONNECT(XC_A_0)                                                       /* SISA_OP_XC_A_0_CONNECT */
+/* A7.9 64-bit transfers between ARM core and extension registers */
+/* A7.6 Extension register load/store instructions */
+INST(VMOV_2reg_2sp, 0x0c400a10, 0x0ff00fd0, 0xf0000000, 0xf0000000,   /* SISA_OP_VMOV_2reg_2sp  */
+     NCOND,
+     FPSR(0,3,5), FPNA,
+     DGPR(12,15), DGPR(16,19), FPNA, FPNA,
+     REG_FLAG, VFP_OP,
+     0, 0) /* FIXME: +1 FP follow reg */
+INST(VMOV_2sp_2reg, 0x0c500a10, 0x0ff00fd0, 0xf0000000, 0xf0000000,   /* SISA_OP_VMOV_2sp_2reg  */
+     NCOND,
+     DGPR(12,15), DGPR(16,19),
+     FPSR(0,3,5), FPNA, FPNA, FPNA,
+     REG_FLAG, VFP_OP,
+     0, 0)    /* FIXME: +1 FP follow reg */
+INST(VMOV_2reg_dp, 0x0c400b10, 0x0ff00fd0, 0xf0000000, 0xf0000000,    /* SISA_OP_VMOV_2reg_dp   */
+     NCOND,
+     FPDR(0,3,5), FPNA,
+     DGPR(12,15), DGPR(16,19), FPNA, FPNA,
+     REG_FLAG, VFP_OP,
+     0, 0)
+INST(VMOV_dp_2reg, 0x0c500b10, 0x0ff00fd0, 0xf0000000, 0xf0000000,    /* SISA_OP_VMOV_dp_2reg   */
+     NCOND,
+     DGPR(12,15), DGPR(16,19),
+     FPDR(0,3,5), FPNA, FPNA, FPNA,
+     REG_FLAG, VFP_OP,
+     0, 0)
+INST(VSTM_nw_a2, 0x0c800a00, 0x0fb00f00, 0xf0000000, 0xf0000000,     /* SISA_OP_VSTM_inc_nw    */
+     NCOND,
+     FPNA, FPNA,
+     FPSR(12,15,22), DGPR(16,19), DIMM(0,7), FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VSTM_nw_a1, 0x0c800b00, 0x0fb00f00, 0xf0000000, 0xf0000000,     /* SISA_OP_VSTM_inc_nw    */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DIMM(0,7), FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VSTM_w_a2, 0x0ca00a00, 0x0fb00f00, 0xf0000000, 0xf0000000,      /* SISA_OP_VSTM_inc_w     */
+     NCOND,
+     FPNA, FPNA,
+     FPSR(12,15,22), DGPR(16,19), DIMM(0,7), FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VSTM_w_a1, 0x0ca00b00, 0x0fb00f00, 0xf0000000, 0xf0000000,      /* SISA_OP_VSTM_inc_w     */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DIMM(0,7), FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VLDM_nw_a2, 0x0c900a00, 0x0fb00f00, 0xf0000000, 0xf0000000,     /* SISA_OP_VLDM_nw_a2    */
+     NCOND,
+     FPSR(12,15,22), FPNA,
+     DGPR(16,19), DIMM(0,7), FPNA, FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VLDM_nw_a1, 0x0c900b00, 0x0fb00f00, 0xf0000000, 0xf0000000,     /* SISA_OP_VLDM_nw_a1    */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DIMM(0,7), FPNA, FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VPOP_a2, 0x0cbd0a00, 0x0fbf0f00, 0xf0000000, 0xf0000000,            /* SISA_OP_VPOP           */
+     NCOND,
+     FPSR(12,15,22), FPNA,
+     DGPR(16,19), DIMM(0,7), FPNA, FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VPOP_a1, 0x0cbd0b00, 0x0fbf0f00, 0xf0000000, 0xf0000000,            /* SISA_OP_VPOP           */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DIMM(0,7), FPNA, FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VLDM_w_a2, 0x0cb00a00, 0x0fb00f00, 0xf00d0000, 0xf00f0000,      /* SISA_OP_VLDM_w     */
+     NCOND,
+     FPSR(12,15,22), FPNA,
+     DGPR(16,19), DIMM(0,7), FPNA, FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VLDM_w_a1, 0x0cb00b00, 0x0fb00f00, 0xf00d0000, 0xf00f0000,      /* SISA_OP_VLDM_w     */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DIMM(0,7), FPNA, FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+
+TAIL(XC_A_0_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_XC_A_0_END     */
+
+CONNECT(XC_A_1)                                                       /* SISA_OP_XC_A_1_CONNECT */
+/* A7.6 Extension register load/store instructions */
+INST(VSTR_a2, 0x0d000a00, 0x0f300f00, 0xf0000000, 0xf0000000,            /* SISA_OP_VSTR           */
+     NCOND,
+     FPNA, FPNA,
+     FPSR(12,15,22), DGPR(16,19), DIMM_ZERO_EXTEND(0,7,2), FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VSTR_a1, 0x0d000b00, 0x0f300f00, 0xf0000000, 0xf0000000,            /* SISA_OP_VSTR           */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DIMM_ZERO_EXTEND(0,7,2), FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VPUSH_a2, 0x0d2d0a00, 0x0fbf0f00, 0xf0000000, 0xf0000000,           /* SISA_OP_VPUSH          */
+     NCOND,
+     FPNA, FPNA,
+     FPSR(12,15,22), DGPR(16,19), DIMM(0,7), FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VPUSH_a1, 0x0d2d0b00, 0x0fbf0f00, 0xf0000000, 0xf0000000,           /* SISA_OP_VPUSH          */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DIMM(0,7), FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VSTM_db_w_a2, 0x0d200a00, 0x0fb00f00, 0xf00d0000, 0xf00f0000,      /* SISA_OP_VSTM_dec_w     */
+     NCOND,
+     FPNA, FPNA,
+     FPSR(12,15,22), DGPR(16,19), DIMM(0,7), FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VSTM_db_w_a1, 0x0d200b00, 0x0fb00f00, 0xf00d0000, 0xf00f0000,      /* SISA_OP_VSTM_dec_w     */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DIMM(0,7), FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VLDR_a2, 0x0d100a00, 0x0f300f00, 0xf0000000, 0xf0000000,            /* SISA_OP_VLDR           */
+     NCOND,
+     FPSR(12,15,22), FPNA,
+     DGPR(16,19), DIMM_ZERO_EXTEND(0,7,2), FPNA, FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VLDR_a1, 0x0d100b00, 0x0f300f00, 0xf0000000, 0xf0000000,            /* SISA_OP_VLDR           */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DIMM_ZERO_EXTEND(0,7,2), FPNA, FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VLDM_db_w_a2, 0x0d300a00, 0x0fb00f00, 0xf0000000, 0xf0000000,            /* SISA_OP_VLDM           */
+     NCOND,
+     FPSR(12,15,22), FPNA,
+     DGPR(16,19), DIMM(0,7), FPNA, FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+INST(VLDM_db_w_a1, 0x0d300b00, 0x0fb00f00, 0xf0000000, 0xf0000000,            /* SISA_OP_VLDM           */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DIMM(0,7), FPNA, FPNA,
+     P_FLAG|U_FLAG|W_FLAG, VFP_OP,
+     0, 0)
+TAIL(XC_A_1_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_XC_A_1_END     */
+
+CONNECT(XC_A_20)                                                      /* SISA_OP_XC_A_20_CONNECT */
+LINK(XC_A_20_B, 0x0eb00a00, 0x0fb00e10, 0xf0000000, 0xf0000000)
+
+/* A7.5 VFP data processing instructions */
+INST(VMLA_vfp_a2, 0x0e000a00, 0x0fb00e50, 0xf0000000, 0xf0000000,     /* SISA_OP_VMLA_vfp_a2       */
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(16,19,7,8), FPDSR(0,3,5,8), FPNA, FPNA,
+     VFP_VEC_INS_FLAG, VFP_OP,
+     0, 0)
+INST(VMLS_vfp_a2, 0x0e000a40, 0x0fb00e50, 0xf0000000, 0xf0000000,     /* SISA_OP_VMLS_vfp_a2       */
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(16,19,7,8), FPDSR(0,3,5,8), FPNA, FPNA,
+     VFP_VEC_INS_FLAG, VFP_OP,
+     0, 0)
+INST(VNMLA, 0x0e100a40, 0x0fb00e50, 0xf0000000, 0xf0000000,           /* SISA_OP_VNMLA          */
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(16,19,7,8), FPDSR(0,3,5,8), FPNA, FPNA,
+     VFP_VEC_INS_FLAG, VFP_OP,
+     0, 0)
+INST(VNMLS, 0x0e100a00, 0x0fb00e50, 0xf0000000, 0xf0000000,           /* SISA_OP_VNMLS          */
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(16,19,7,8), FPDSR(0,3,5,8), FPNA, FPNA,
+     VFP_VEC_INS_FLAG, VFP_OP,
+     0, 0)
+INST(VMUL_fp_a2, 0x0e200a00, 0x0fb00e50, 0xf0000000, 0xf0000000,            /* SISA_OP_VMUL           */
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(16,19,7,8), FPDSR(0,3,5,8), FPNA, FPNA,
+     VFP_VEC_INS_FLAG, VFP_OP,
+     0, 0)
+INST(VNMUL, 0x0e200a40, 0x0fb00e50, 0xf0000000, 0xf0000000,           /* SISA_OP_VNMUL          */
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(16,19,7,8), FPDSR(0,3,5,8), FPNA, FPNA,
+     VFP_VEC_INS_FLAG, VFP_OP,
+     0, 0)
+INST(VADD_fp_a2, 0x0e300a00, 0x0fb00e50, 0xf0000000, 0xf0000000,
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(16,19,7,8), FPDSR(0,3,5,8), FPNA, FPNA,
+     VFP_VEC_INS_FLAG, VFP_OP,
+     0, 0)
+INST(VSUB_fp_a2, 0x0e300a40, 0x0fb00e50, 0xf0000000, 0xf0000000,
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(16,19,7,8), FPDSR(0,3,5,8), FPNA, FPNA,
+     VFP_VEC_INS_FLAG, VFP_OP,
+     0, 0)
+INST(VDIV, 0x0e800a00, 0x0fb00e50, 0xf0000000, 0xf0000000,            /* SISA_OP_VDIV           */
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(16,19,7,8), FPDSR(0,3,5,8), FPNA, FPNA,
+     VFP_VEC_INS_FLAG, VFP_OP,
+     0, 0)
+TAIL(XC_A_20_END, 0x0, 0x0, 0x0, 0x0)                                 /* SISA_OP_XC_A_20_END    */
+
+CONNECT(XC_A_20_B)                                                    /* SISA_OP_XC_A_20_B_CONNECT */
+/* A7.5 VFP data processing instructions */
+INST(VMOV_imm, 0x0eb00a00, 0x0fb00e50, 0xf0000000, 0xf0000000,        /* SISA_OP_VMOV_imm       */
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     DIMM_VFP_EXPAND(16,19,0,3), FPNA, FPNA, FPNA,
+     SECOND_IMM_FLAG | VFP_VEC_INS_FLAG, VFP_OP,
+     0, 0)
+INST(VMOV, 0x0eb00a40, 0x0fbf0ed0, 0xf0000000, 0xf0000000,            /* SISA_OP_VMOV           */
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(0,3,5,8), FPNA, FPNA, FPNA,
+     VFP_VEC_INS_FLAG, VFP_OP,
+     0, 0)
+INST(VABS, 0x0eb00ac0, 0x0fbf0ed0, 0xf0000000, 0xf0000000,            /* SISA_OP_VABS           */
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(0,3,5,8), FPNA, FPNA, FPNA,
+     VFP_VEC_INS_FLAG, VFP_OP,
+     0, 0)
+INST(VNEG_a2, 0x0eb10a40, 0x0fbf0ed0, 0xf0000000, 0xf0000000,            /* SISA_OP_VNEG           */
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(0,3,5,8), FPNA, FPNA, FPNA,
+     VFP_VEC_INS_FLAG, VFP_OP,
+     0, 0)
+INST(VSQRT, 0x0eb10ac0, 0x0fbf0ed0, 0xf0000000, 0xf0000000,           /* SISA_OP_VSQRT          */
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(0,3,5,8), FPNA, FPNA, FPNA,
+     VFP_VEC_INS_FLAG, VFP_OP,
+     0, 0)
+INST(VCVTB, 0x0eb20a40, 0x0fbe0fd0, 0xf0000000, 0xf0000000,           /* SISA_OP_VCVTB          */
+     NCOND,
+     FPSR(12,15,22), FPNA,
+     FPSR(0,3,5), FPNA, FPNA, FPNA,
+     NONE_FLAG, VFP_OP,
+     0, 0)
+INST(VCVTT, 0x0eb20ac0, 0x0fbe0fd0, 0xf0000000, 0xf0000000,           /* SISA_OP_VCVTT          */
+     NCOND,
+     FPSR(12,15,22), FPNA,
+     FPSR(0,3,5), FPNA, FPNA, FPNA,
+     NONE_FLAG, VFP_OP,
+     0, 0)
+INST(VCMP_a1, 0x0eb40a40, 0x0fbf0ed0, 0xf0000000, 0xf0000000,         /* SISA_OP_VCMP_a1        */
+     NCOND,
+     FPNA, FPNA,
+     FPDSR(12,15,22,8), FPDSR(0,3,5,8), FPNA, FPNA,
+     NONE_FLAG, VFP_OP,
+     0, 0)
+INST(VCMP_a2, 0x0eb50a40, 0x0fbf0ed0, 0xf0000000, 0xf0000000,         /* SISA_OP_VCMP_a2        */
+     NCOND,
+     FPNA, FPNA,
+     FPDSR(12,15,22,8), FPNA, FPNA, FPNA,
+     NONE_FLAG, VFP_OP,
+     0, 0)
+INST(VCMPE_a1, 0x0eb40ac0, 0x0fbf0ed0, 0xf0000000, 0xf0000000,        /* SISA_OP_VCMPE_a1       */
+     NCOND,
+     FPNA, FPNA,
+     FPDSR(12,15,22,8), FPDSR(0,3,5,8), FPNA, FPNA,
+     NONE_FLAG, VFP_OP,
+     0, 0)
+INST(VCMPE_a2, 0x0eb50ac0, 0x0fbf0ed0, 0xf0000000, 0xf0000000,        /* SISA_OP_VCMPE_a2       */
+     NCOND,
+     FPNA, FPNA,
+     FPDSR(12,15,22,8), FPNA, FPNA, FPNA,
+     NONE_FLAG, VFP_OP,
+     0, 0)
+INST(VCVT_spdp, 0x0eb70ac0, 0x0fbf0fd0, 0x00000000, 0x000e0000,       /* SISA_OP_VCVT_spdp      */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPSR(0,3,5), FPNA, FPNA, FPNA,
+     NONE_FLAG, VFP_OP,
+     0, 0)
+INST(VCVT_dpsp, 0x0eb70bc0, 0x0fbf0fd0, 0x00000000, 0x000e0000,       /* SISA_OP_VCVT_dpsp      */
+     NCOND,
+     FPSR(12,15,22), FPNA,
+     FPDR(0,3,5), FPNA, FPNA, FPNA,
+     NONE_FLAG, VFP_OP,
+     0, 0)
+INST(VCVT_imm, 0x0eba0a40, 0x0fba0e50, 0x00000000, 0x000e0000,            /* SISA_OP_VCVT_imm           */
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(12,15,22,8), DIMM_MERGE(0,3,5,5), FPNA, FPNA,
+     NONE_FLAG, VFP_OP,
+     0, 0)/* FIXME: break down */
+INST(VCVT, 0x0eb80a40, 0x0fb80e50, 0x00000000, 0x000e0000,            /* SISA_OP_VCVT           */
+     NCOND,
+     FPDSR(12,15,22,8), FPNA,
+     FPDSR(0,3,5,8), DIMM(16,18), DIMM(7,7), FPNA,
+     NONE_FLAG, VFP_OP,
+     0, 0)/* FIXME: break down */
+TAIL(XC_A_20_B_END, 0x0, 0x0, 0x0, 0x0)                               /* SISA_OP_XC_A_20_B_END  */
+
+CONNECT(XC_A_21)                                                      /* SISA_OP_XC_A_21_CONNECT */
+/* A7.8 8,16,32 bit transfer between ARM core and extension registers */
+INST(VMOV_reg2sp, 0x0e000a10, 0x0ff00f10, 0xf0000000, 0xf0000000,     /* SISA_OP_VMOV_reg2sp    */
+     NCOND,
+     FPSR(16,19,7), FPNA,
+     DGPR(12,15), FPNA, FPNA, FPNA,
+     REG_FLAG, VFP_OP,
+     0, 0)
+INST(VMOV_sp2reg, 0x0e100a10, 0x0ff00f10, 0xf0000000, 0xf0000000,     /* SISA_OP_VMOV_sp2reg    */
+     NCOND,
+     DGPR(12,15), FPNA,
+     FPSR(16,19,7), FPNA, FPNA, FPNA,
+     REG_FLAG, VFP_OP,
+     0, 0)
+INST(VMSR, 0x0ee10a10, 0x0fff0f90, 0xf0000000, 0xf0000000,            /* SISA_OP_VMSR           */
+     NCOND,
+     FPNA, FPNA,
+     DGPR(12,15), FPNA, FPNA, FPNA,
+     NONE_FLAG, VFP_OP,
+     0, 0)
+INST(VMOV_reg2sc, 0x0e000b10, 0x0f900f10, 0xf0000000, 0xf0000000,     /* SISA_OP_VMOV_reg2sc    */
+     NCOND,
+     FPDR(16,19,7), FPNA,
+     DGPR(12,15), FPNA, FPNA, FPNA,
+     REG_FLAG, VFP_OP,
+     0, 0)
+INST(VDUP, 0x0e800b10, 0x0f900f50, 0xf0000000, 0xf0000000,            /* SISA_OP_VDUP           */
+     NCOND,
+     FPQDR(16,19,7,21), FPNA,
+     DGPR(12,15), DIMM_MERGE(5,5,22,22), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMRS, 0x0ef10a10, 0x0fff0f90, 0xf0000000, 0xf0000000,            /* SISA_OP_VMRS           */
+     NCOND,
+     DGPR(12,15), FPNA,
+     FPNA, FPNA, FPNA, FPNA,
+     NONE_FLAG, VFP_OP,
+     0, 0)
+INST(VMOV_sc2reg, 0x0e100b10, 0x0f100f10, 0xf0000000, 0xf0000000,     /* SISA_OP_VMOV_sc2reg    */
+     NCOND,
+     DGPR(12,15), FPNA,
+     FPDR(16,19,7), FPNA, FPNA, FPNA,
+     REG_FLAG, VFP_OP,
+     0, 0)
+TAIL(XC_A_21_END, 0x0, 0x0, 0x0, 0x0)                                 /* SISA_OP_XC_A_21_END    */
+
+CONNECT(F0)                                                           /* SISA_OP_F0_CONNECT     */
+/* A5.7.1 Miscellaneous instructions, memory hints, and Advanced SIMD instructions */
+INST(CPS, 0xf1000000, 0xfff10020, 0xffffffff, 0x00000000,             /* SISA_OP_CPS            */
+     NCOND,
+     DNA, DNA,
+     DNA,DNA, DNA, DNA,
+     NONE_FLAG, SYS_OP,
+     0, 0)
+INST(SETEND, 0xf1010000, 0xfff100f0, 0xffffffff, 0x00000000,          /* SISA_OP_SETEND         */
+     NCOND,
+     DNA, DNA,
+     DNA,DNA, DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+
+TAIL(F0_END, 0x0, 0x0, 0x0, 0x0)                                      /* SISA_OP_F0_END         */
+
+CONNECT(F2)  /* simd data processing */                               /* SISA_OP_F2_CONNECT     */
+// 3 reg of same len
+LINK(F2_0, 0xf2000000, 0xfe800000, 0xffffffff, 0x00000000)            /* SISA_OP_F2_0           */
+// 1 reg and 1 imm
+LINK(F2_801, 0xf2800010, 0xfeb80090, 0xffffffff, 0x00000000)          /* SISA_OP_F2_801         */
+// 2 reg and 1 shf
+LINK(F2_8x1, 0xf2800010, 0xfe800010, 0x00100000, 0x00100000)          /* SISA_OP_F2_8x1         */ //TODO: needs full validition
+// 2 reg and misc
+LINK(F2_1B00, 0xf3b00000, 0xffb00810, 0xffffffff, 0x00000000)         /* SISA_OP_F2_1B00        */
+// 3 reg of x len
+LINK(F2_8x0, 0xf2800000, 0xfe800050, 0x00100000, 0x00100000)          /* SISA_OP_F2_8x0         */
+// 2 reg and 1 scal
+LINK(F2_8x4, 0xf2800040, 0xfe800050, 0x00100000, 0x00100000)          /* SISA_OP_F2_8x4         */
+
+    /* A7.4 simd data processing instructions */
+INST(VEXT, 0xf2b00000, 0xffb00010, 0xffffffff, 0x00000000,            /* SISA_OP_VEXT           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(8,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VTBL, 0xf3b00800, 0xffb00c50, 0xffffffff, 0x00000000,            /* SISA_OP_VTBL           */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VTBX, 0xf3b00840, 0xffb00c50, 0xffffffff, 0x00000000,            /* SISA_OP_VTBX           */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VDUP_sc, 0xf3b00c00, 0xffb00f90, 0xffffffff, 0x00000000,         /* SISA_OP_VDUP_sc        */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPDR(0,3,5), DIMM(16,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_END, 0x0, 0x0, 0x0, 0x0)                                      /* SISA_OP_F2_END         */
+
+CONNECT(F2_0)                                                         /* SISA_OP_F2_0_CONNECT   */
+/* A7.4.1 3 registers of same length */
+LINK(F2_0_0, 0xf2000000, 0xfe800e00, 0xffffffff, 0x00000000)          /* SISA_OP_F2_0_0         */
+LINK(F2_0_2, 0xf2000200, 0xfe800e00, 0xffffffff, 0x00000000)
+LINK(F2_0_4, 0xf2000400, 0xfe800e00, 0xffffffff, 0x00000000)          /* SISA_OP_F2_0_4         */
+LINK(F2_0_6, 0xf2000600, 0xfe800e00, 0xffffffff, 0x00000000)
+LINK(F2_0_8, 0xf2000800, 0xfe800e00, 0xffffffff, 0x00000000)          /* SISA_OP_F2_0_8         */
+LINK(F2_0_A, 0xf2000a00, 0xfe800e00, 0xffffffff, 0x00000000)
+LINK(F2_0_C, 0xf2000c00, 0xfe800e00, 0xffffffff, 0x00000000)          /* SISA_OP_F2_0_C         */
+LINK(F2_0_E, 0xf2000e00, 0xfe800e00, 0xffffffff, 0x00000000)
+TAIL(F2_0_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_F2_0_END       */
+
+CONNECT(F2_0_0)                                                       /* SISA_OP_F2_0_0_CONNECT */
+INST(VHADD, 0xf2000000, 0xfe800f10, 0xffffffff, 0x00000000,
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     SIMD_U_FLAG|NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VQADD, 0xf2000010, 0xfe800f10, 0xffffffff, 0x00000000,           /* SISA_OP_VQADD          */
+     FCONDQC,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(18,19), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VRHADD, 0xf2000100, 0xfe800f10, 0xffffffff, 0x00000000,          /* SISA_OP_VRHADD         */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VAND, 0xf2000110, 0xffb00f10, 0xffffffff, 0x00000000,            /* SISA_OP_VAND           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VBIC, 0xf2100110, 0xffb00f10, 0xffffffff, 0x00000000,            /* SISA_OP_VBIC           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VORR, 0xf2200110, 0xffb00f10, 0xffffffff, 0x00000000,            /* SISA_OP_VORR           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)/* VMOV if identical src */
+INST(VORN, 0xf2300110, 0xffb00f10, 0xffffffff, 0x00000000,            /* SISA_OP_VORN           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VEOR, 0xf3000110, 0xffb00f10, 0xffffffff, 0x00000000,            /* SISA_OP_VEOR           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VBSL, 0xf3100110, 0xffb00f10, 0xffffffff, 0x00000000,            /* SISA_OP_VBSL           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VBIT, 0xf3200110, 0xffb00f10, 0xffffffff, 0x00000000,            /* SISA_OP_VBIT           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VBIF, 0xf3300110, 0xffb00f10, 0xffffffff, 0x00000000,            /* SISA_OP_VBIF           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_0_0_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_F2_0_0_END     */
+
+CONNECT(F2_0_2)                                                       /* SISA_OP_F2_0_2_CONNECT */
+INST(VHSUB, 0xf2000200, 0xfe800f10, 0xffffffff, 0x00000000,
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     SIMD_U_FLAG|NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VQSUB, 0xf2000210, 0xfe800f10, 0xffffffff, 0x00000000,           /* SISA_OP_VQSUB          */
+     FCONDQC,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VCGT, 0xf2000300, 0xfe800f10, 0xffffffff, 0x00000000,            /* SISA_OP_VCGT           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VCGE, 0xf2000310, 0xfe800f10, 0xffffffff, 0x00000000,            /* SISA_OP_VCGE           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_0_2_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_F2_0_2_END     */
+
+CONNECT(F2_0_4)                                                       /* SISA_OP_F2_0_4_CONNECT */
+INST(VSHL, 0xf2000400, 0xfe800f10, 0xffffffff, 0x00000000,
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VQSHL, 0xf2000410, 0xfe800f10, 0xffffffff, 0x00000000,           /* SISA_OP_VQSHL          */
+     FCONDQC,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VRSHL, 0xf2000500, 0xfe800f10, 0xffffffff, 0x00000000,           /* SISA_OP_VRSHL          */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VQRSHL, 0xf2000510, 0xfe800f10, 0xffffffff, 0x00000000,          /* SISA_OP_VQRSHL         */
+     FCONDQC,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_0_4_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_F2_0_4_END     */
+
+CONNECT(F2_0_6)                                                       /* SISA_OP_F2_0_6_CONNECT */
+INST(VMAX_int, 0xf2000600, 0xfe800f10, 0xffffffff, 0x00000000,
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VMIN_int, 0xf2000610, 0xfe800f10, 0xffffffff, 0x00000000,        /* SISA_OP_VMIN_int       */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VABD_int, 0xf2000700, 0xfe800f10, 0x00300000, 0x00300000,        /* SISA_OP_VABD_int       */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VABA, 0xf2000710, 0xfe800f10, 0xffffffff, 0x00000000,            /* SISA_OP_VABA           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_0_6_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_F2_0_6_END     */
+
+CONNECT(F2_0_8)                                                       /* SISA_OP_F2_0_8_CONNECT */
+INST(VADD_int, 0xf2000800, 0xff800f10, 0xffffffff, 0x00000000,
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VSUB_int, 0xf3000800, 0xff800f10, 0xffffffff, 0x00000000,        /* SISA_OP_VSUB_int       */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VTST, 0xf2000800, 0xff800f10, 0xffffffff, 0x00000000,            /* SISA_OP_VTST           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VCEQ, 0xf3000810, 0xff800f10, 0xffffffff, 0x00000000,            /* SISA_OP_VCEQ           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMLA, 0xf2000900, 0xff800f10, 0x00300000, 0x00300000,            /* SISA_OP_VMLA           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMLS, 0xf3000900, 0xff800f10, 0x00300000, 0x00300000,            /* SISA_OP_VMLS           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMUL_int_a1, 0xf2000910, 0xff800f10, 0x00300000, 0x00300000,        /* SISA_OP_VMUL_int       */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMUL_poly_a1, 0xf3000910, 0xff800f10, 0x00300000, 0x00300000,       /* SISA_OP_VMUL_poly      */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_0_8_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_F2_0_8_END     */
+
+CONNECT(F2_0_A)                                                       /* SISA_OP_F2_0_A_CONNECT */
+INST(VPMAX_int, 0xf2000a00, 0xfe800f10, 0xffffffff, 0x00000000,
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(18,19), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VPMIN_int, 0xf2000a10, 0xfe800f10, 0xffffffff, 0x00000000,       /* SISA_OP_VPMIN_int      */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(18,19), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VQDMULH, 0xf2000b00, 0xff800f10, 0x00300000, 0x00300000,         /* SISA_OP_VQDMULH        */
+     FCONDQC,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VQRDMULH, 0xf3000b00, 0xff800f10, 0xffffffff, 0x00000000,        /* SISA_OP_VQRDMULH       */
+     FCONDQC,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VPADD, 0xf2000b10, 0xff800f10, 0x00300000, 0x00300000,           /* SISA_OP_VPADD          */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(18,19), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_0_A_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_F2_0_A_END     */
+
+CONNECT(F2_0_C)                                                       /* SISA_OP_F2_0_C_CONNECT */
+INST(VADD_fp_a1, 0xf2000d00, 0xffa00f10, 0xffffffff, 0x00000000,
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(21,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VSUB_fp_a1, 0xf2200d00, 0xffa00f10, 0xffffffff, 0x00000000,         /* SISA_OP_VSUB_fp        */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(21,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VPADD_fp, 0xf3000d00, 0xffa00f10, 0x00100000, 0x00100000,        /* SISA_OP_VPADD_fp       */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VABD_fp, 0xf3200d00, 0xffa00f10, 0xffffffff, 0x00000000,         /* SISA_OP_VABD_fp        */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), DIMM(20,20), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMLA_fp, 0xf2000d10, 0xffa00f10, 0xffffffff, 0x00000000,         /* SISA_OP_VMLA_fp        */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMLS_fp, 0xf2200d10, 0xffa00f10, 0xffffffff, 0x00000000,         /* SISA_OP_VMLS_fp        */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMUL_fp_a1, 0xf3000d10, 0xffa00f10, 0xffffffff, 0x00000000,         /* SISA_OP_VMUL_fp        */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_0_C_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_F2_0_C_END     */
+
+CONNECT(F2_0_E)                                                       /* SISA_OP_F2_0_E_CONNECT */
+INST(VCEQ_fp, 0xf2000e00, 0xffa00f10, 0xffffffff, 0x00000000,
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VCGE_fp, 0xf3000e00, 0xffa00f10, 0xffffffff, 0x00000000,         /* SISA_OP_VCGE_fp        */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VCGT_fp, 0xf3200e00, 0xffa00f10, 0xffffffff, 0x00000000,          /* SISA_OP_VCGT_fp         */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VACGE, 0xf3000e10, 0xffa00f10, 0xffffffff, 0x00000000,           /* SISA_OP_VACGE          */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VACGT, 0xf3200e10, 0xffa00f10, 0xffffffff, 0x00000000,           /* SISA_OP_VACGT          */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMAX_fp, 0xf2000f00, 0xffa00f10, 0xffffffff, 0x00000000,         /* SISA_OP_VMAX_fp        */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMIN_fp, 0xf2200f00, 0xffa00f10, 0xffffffff, 0x00000000,         /* SISA_OP_VMIN_fp        */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VPMAX_fp, 0xf3000f00, 0xffa00f10, 0xffffffff, 0x00000000,        /* SISA_OP_VPMAX_fp       */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VPMIN_fp, 0xf3200f00, 0xffa00f10, 0xffffffff, 0x00000000,        /* SISA_OP_VPMIN_fp       */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VRECPS, 0xf2000f10, 0xffa00f10, 0xffffffff, 0x00000000,          /* SISA_OP_VRECPS         */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VRSQRTS, 0xf2200f10, 0xffa00f10, 0xffffffff, 0x00000000,         /* SISA_OP_VRSQRTS        */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(16,19,7,6), FPQDR(0,3,5,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_0_E_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_F2_0_E_END     */
+
+CONNECT(F2_801)                                                       /* SISA_OP_F2_801_CONNECT */
+/* A7.4.6 1 register and 1 modified immediate value */
+INST(VMOV_imm_0, 0xf2800010, 0xfeb80990, 0xffffffff, 0x00000000,      /* SISA_OP_VMOV_imm_0     */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     DIMM_SIMDEXP(0,3), FPNA, FPNA, FPNA,
+     SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VMOV_imm_1, 0xf2800810, 0xfeb80d90, 0xffffffff, 0x00000000,      /* SISA_OP_VMOV_imm_1     */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     DIMM_SIMDEXP(0,3), FPNA, FPNA, FPNA,
+     SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VMOV_imm_2, 0xf2800c10, 0xfeb80c90, 0xffffffff, 0x00000000,      /* SISA_OP_VMOV_imm_2     */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     DIMM_SIMDEXP(0,3), FPNA, FPNA, FPNA,
+     SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VMOV_imm_3, 0xf2800e10, 0xfeb80f90, 0xffffffff, 0x00000000,      /* SISA_OP_VMOV_imm_3     */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     DIMM_SIMDEXP(0,3), FPNA, FPNA, FPNA,
+     SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+
+INST(VORR_imm, 0xf2800110, 0xfeb809b0, 0xffffffff, 0x00000000,        /* SISA_OP_VORR_imm       */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(12,15,22,6), DIMM_SIMDEXP(0,3), FPNA, FPNA,
+     SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VORR_imm_0, 0xf2800910, 0xfeb80db0, 0xffffffff, 0x00000000,      /* SISA_OP_VORR_imm_0     */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(12,15,22,6), DIMM_SIMDEXP(0,3), FPNA, FPNA,
+     SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+
+INST(VMVN_imm, 0xf2800030, 0xfeb809b0, 0xffffffff, 0x00000000,        /* SISA_OP_VMVN_imm       */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     DIMM_SIMDEXP(0,3), FPNA, FPNA, FPNA,
+     SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VMVN_imm_0, 0xf2800830, 0xfeb80db0, 0xffffffff, 0x00000000,      /* SISA_OP_VMVN_imm_0     */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     DIMM_SIMDEXP(0,3), FPNA, FPNA, FPNA,
+     SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VMVN_imm_1, 0xf2800c30, 0xfeb80eb0, 0xffffffff, 0x00000000,      /* SISA_OP_VMVN_imm_1     */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     DIMM_SIMDEXP(0,3), FPNA, FPNA, FPNA,
+     SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+
+INST(VBIC_imm, 0xf2800130, 0xfeb809b0, 0xffffffff, 0x00000000,        /* SISA_OP_VBIC_imm       */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(12,15,22,6), DIMM_SIMDEXP(0,3), FPNA, FPNA,
+     SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VBIC_imm_0, 0xf2800930, 0xfeb80d30, 0xffffffff, 0x00000000,      /* SISA_OP_VBIC_imm_0     */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(12,15,22,6), DIMM_SIMDEXP(0,3), FPNA, FPNA,
+     SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_801_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_F2_801_END     */
+
+CONNECT(F2_8x1)                                                       /* SISA_OP_F2_8x1_CONNECT */
+/* A7.4.4 2 registers and 1 shift amount */
+INST(VSHR, 0xf2800010, 0xfe800f10, 0xffffffff, 0x00000000,            /* SISA_OP_VSHR           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM_MERGE(7,7,16,21), FPNA, FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VSRA, 0xf2800110, 0xfe800f10, 0xffffffff, 0x00000000,            /* SISA_OP_VSRA           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM_MERGE(7,7,16,21), FPNA, FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VRSHR, 0xf2800210, 0xfe800f10, 0xffffffff, 0x00000000,           /* SISA_OP_VRSHR          */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM_MERGE(7,7,16,21), FPNA, FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VRSRA, 0xf2800310, 0xfe800f10, 0xffffffff, 0x00000000,           /* SISA_OP_VRSRA          */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM_MERGE(7,7,16,21), FPNA, FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VSRI, 0xf3800410, 0xff800f10, 0xffffffff, 0x00000000,            /* SISA_OP_VSRI           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM_MERGE(7,7,16,21), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VSHL_imm, 0xf2800510, 0xff800f10, 0xffffffff, 0x00000000,        /* SISA_OP_VSHL_imm       */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM_MERGE(7,7,16,21), FPNA, FPNA,
+     SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VSLI, 0xf3800510, 0xff800f10, 0xffffffff, 0x00000000,            /* SISA_OP_VSLI           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM_MERGE(7,7,16,21), FPNA, FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VQSHLU_imm, 0xf3800610, 0xff800f10, 0xffffffff, 0x00000000,      /* SISA_OP_VQSHLU_imm     */
+     FCONDQC,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM_MERGE(7,7,16,21), FPNA, FPNA,
+     SIMD_U_FLAG|SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VQSHL_imm, 0xf2800710, 0xfe800f10, 0xffffffff, 0x00000000,       /* SISA_OP_VQSHL_imm      */
+     FCONDQC,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM_MERGE(7,7,16,21), FPNA, FPNA,
+     SIMD_U_FLAG|SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VSHRN, 0xf2800810, 0xff800fd0, 0xffffffff, 0x00000000,           /* SISA_OP_VSHRN          */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPQR(0,3,5), DIMM(16,21), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VRSHRN, 0xf2800850, 0xff800f50, 0xffffffff, 0x00000000,          /* SISA_OP_VRSHRN         */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPQR(0,3,5), DIMM(16,21), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VQSHRUN, 0xf3800810, 0xff800f50, 0xffffffff, 0x00000000,         /* SISA_OP_VQSHRUN        */
+     FCONDQC,
+     FPDR(12,15,22), FPNA,
+     FPQR(0,3,5), DIMM(16,21), FPNA, FPNA,
+     SIMD_U_FLAG|NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VQRSHRUN, 0xf3800850, 0xff800f50, 0xffffffff, 0x00000000,        /* SISA_OP_VQRSHRUN       */
+     FCONDQC,
+     FPDR(12,15,22), FPNA,
+     FPQR(0,3,5), DIMM(16,21), FPNA, FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VQSHRN, 0xf2800910, 0xfe800f50, 0xffffffff, 0x00000000,          /* SISA_OP_VQSHRN         */
+     FCONDQC,
+     FPDR(12,15,22), FPNA,
+     FPQR(0,3,5), DIMM(16,21), FPNA, FPNA,
+     SIMD_U_FLAG|NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VQRSHRN, 0xf2800950, 0xfe800f50, 0xffffffff, 0x00000000,         /* SISA_OP_VQRSHRN        */
+     FCONDQC,
+     FPDR(12,15,22), FPNA,
+     FPQR(0,3,5), DIMM(16,21), FPNA, FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VMOV_a1, 0xf2200110, 0xffb00f10, 0xffffffff, 0x00000000,           /* SISA_OP_VMOV_a1          */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), FPQDR(16,19,7,6), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMOVL, 0xf2800a10, 0xfe870fd0, 0xffffffff, 0x00000000,           /* SISA_OP_VMOVL          */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(0,3,5), DIMM(19,21), FPNA, FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VSHLL, 0xf2800a10, 0xfe800f50, 0x00000000, 0x00380000,           /* SISA_OP_VSHLL          */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(0,3,5), DIMM(16,21), FPNA, FPNA,
+     SIMD_U_FLAG|NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VCVT_fpfx, 0xf2800e10, 0xfe800e10, 0xffffffff, 0x00000000,       /* SISA_OP_VCVT_fpfx      */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(8,8), FPNA, FPNA,
+     SIMD_U_FLAG|NONE_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_8x1_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_F2_8x1_END     */
+
+CONNECT(F2_8x0)                                                       /* SISA_OP_F2_8x0_CONNECT */
+/* A7.4.2 3 registers of different length */
+INST(VADDL, 0xf2800000, 0xfe800f50, 0x00300000, 0x00300000,           /* SISA_OP_VADDL          */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VADDW, 0xf2800100, 0xfe800f50, 0x00300000, 0x00300000,           /* SISA_OP_VADDW          */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPQR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VSUBL, 0xf2800200, 0xfe800f50, 0x00300000, 0x00300000,           /* SISA_OP_VSUBL          */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VSUBW, 0xf2800300, 0xfe800f50, 0x00300000, 0x00300000,           /* SISA_OP_VSUBW          */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPQR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VADDHN, 0xf2800400, 0xff800f50, 0x00300000, 0x00300000,          /* SISA_OP_VADDHN         */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPQR(16,19,7), FPQR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VRADDHN, 0xf3800400, 0xff800f50, 0x00300000, 0x00300000,         /* SISA_OP_VRADDHN        */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPQR(16,19,7), FPQR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VABAL, 0xf2800500, 0xfe800f50, 0x00300000, 0x00300000,           /* SISA_OP_VABAL          */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20, 21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VSUBHN, 0xf2800600, 0xff800f50, 0x00300000, 0x00300000,          /* SISA_OP_VSUBHN         */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPQR(16,19,7), FPQR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VRSUBHN, 0xf3800600, 0xff800f50, 0x00300000, 0x00300000,         /* SISA_OP_VRSUBHN        */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPQR(16,19,7), FPQR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VABDL_int, 0xf2800700, 0xfe800f50, 0x00300000, 0x00300000,       /* SISA_OP_VABDL_int      */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VMLAL_int, 0xf2800800, 0xfe800f50, 0x00300000, 0x00300000,       /* SISA_OP_VMLAL_int      */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VMLSL_int, 0xf2800a00, 0xfe800f50, 0x00300000, 0x00300000,       /* SISA_OP_VMLSL_int      */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VQDMLAL, 0xf2800900, 0xff800f50, 0x00300000, 0x00300000,         /* SISA_OP_VQDMLAL        */
+     FCONDQC,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VQDMLSL, 0xf2800b00, 0xff800f50, 0x00300000, 0x00300000,         /* SISA_OP_VQDMLSL        */
+     FCONDQC,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMULL_int, 0xf2800c00, 0xfe800f50, 0x00300000, 0x00300000,       /* SISA_OP_VMULL_int      */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VQDMULL, 0xf2800d00, 0xff800f50, 0x00300000, 0x00300000,         /* SISA_OP_VQDMULL        */
+     FCONDQC,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMULL_poly, 0xf2800e00, 0xfe800f50, 0x00300000, 0x00300000,      /* SISA_OP_VMULL_poly     */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_8x0_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_F2_8x0_END     */
+
+CONNECT(F2_8x4)                                                       /* SISA_OP_F2_8x4_CONNECT */
+/* A7.4.3 2 registers and 1 scalar */
+INST(VMLA_sc, 0xf2800040, 0xfe800e50, 0x00300000, 0x00300000,         /* SISA_OP_VMLA_sc        */
+     NCOND,
+     FPQDR(12,15,22,24), FPNA,
+     FPQDR(16,19,7,24), FPDR(0,3,5), DIMM(20,21), FPNA,
+     SIMD_F_FLAG, SIMD_OP,
+     0, 0)
+INST(VMLS_sc, 0xf2800440, 0xfe800e50, 0x00300000, 0x00300000,         /* SISA_OP_VMLS_sc        */
+     NCOND,
+     FPQDR(12,15,22,24), FPNA,
+     FPQDR(16,19,7,24), FPDR(0,3,5), DIMM(20,21), FPNA,
+     SIMD_F_FLAG, SIMD_OP,
+     0, 0)
+INST(VMLAL_sc, 0xf2800240, 0xfe800f50, 0x00300000, 0x00300000,        /* SISA_OP_VMLAL_sc       */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VMLSL_sc, 0xf2800640, 0xfe800f50, 0x00300000, 0x00300000,        /* SISA_OP_VMLSL_sc       */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VQDMLAL_sc, 0xf2800340, 0xff800f50, 0xffffffff, 0x00000000,      /* SISA_OP_VQDMLAL_sc     */
+     FCONDQC,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VQDMLSL_sc, 0xf2800740, 0xff800f50, 0xffffffff, 0x00000000,      /* SISA_OP_VQDMLSL_sc     */
+     FCONDQC,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMUL_sc, 0xf2800840, 0xfe800e50, 0xffffffff, 0x00000000,         /* SISA_OP_VMUL_sc        */
+     NCOND,
+     FPQDR(12,15,22,24), FPNA,
+     FPQDR(16,19,7,24), FPDR(0,3,5), DIMM(20,21), FPNA,
+     SIMD_F_FLAG, SIMD_OP,
+     0, 0)
+INST(VMULL_sc, 0xf2800a40, 0xfe800f50, 0xffffffff, 0x00000000,        /* SISA_OP_VMULL_sc       */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     SIMD_U_FLAG, SIMD_OP,
+     0, 0)
+INST(VQDMULL_sc, 0xf2800b40, 0xff800f50, 0xffffffff, 0x00000000,      /* SISA_OP_VQDMULL_sc     */
+     FCONDQC,
+     FPQR(12,15,22), FPNA,
+     FPDR(16,19,7), FPDR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VQDMULH_sc, 0xf2800c40, 0xfe800f50, 0xffffffff, 0x00000000,      /* SISA_OP_VQDMULH_sc     */
+     FCONDQC,
+     FPQDR(12,15,22,24), FPNA,
+     FPQDR(16,19,7,24), FPDR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VQRDMULH_sc, 0xf2800d40, 0xfe800f50, 0xffffffff, 0x00000000,     /* SISA_OP_VQRDMULH_sc    */
+     FCONDQC,
+     FPQDR(12,15,22,24), FPNA,
+     FPQDR(16,19,7,24), FPDR(0,3,5), DIMM(20,21), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_8x4_END, 0x0, 0x0, 0x0, 0x0)                                  /* SISA_OP_F2_8x4_END     */
+
+CONNECT(F2_1B00)                                                      /* SISA_OP_F2_1B00_CONNECT */
+LINK(F2_1B00_0, 0xf3b00000, 0xffb30810, 0xffffffff, 0x00000000)
+LINK(F2_1B00_1, 0xf3b10000, 0xffb30810, 0xffffffff, 0x00000000)       /* SISA_OP_F2_1B00_1      */
+LINK(F2_1B00_2, 0xf3b20000, 0xffb30810, 0xffffffff, 0x00000000)
+LINK(F2_1B00_3, 0xf3b30000, 0xffb30810, 0xffffffff, 0x00000000)       /* SISA_OP_F2_1B00_3      */
+TAIL(F2_1B00_END, 0x0, 0x0, 0x0, 0x0)
+
+CONNECT(F2_1B00_0)                                                    /* SISA_OP_F2_1B00_0_CONNECT */
+/* A7.4.5 2 registers, misc */
+INST(VREV64, 0xf3b00000, 0xffb30f90, 0xffffffff, 0x00000000,          /* SISA_OP_VREV64         */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VREV32, 0xf3b00080, 0xffb30f90, 0xffffffff, 0x00000000,          /* SISA_OP_VREV32         */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VREV16, 0xf3b00100, 0xffb30f90, 0xffffffff, 0x00000000,          /* SISA_OP_VREV16         */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VPADDL, 0xf3b00200, 0xffb30f10, 0x000c0000, 0x000c0000,          /* SISA_OP_VPADDL         */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VCLS, 0xf3b00400, 0xffb30f90, 0x000c0000, 0x000c0000,            /* SISA_OP_VCLS           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VCLZ, 0xf3b00480, 0xffb30f90, 0x000c0000, 0x000c0000,            /* SISA_OP_VCLZ           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VCNT, 0xf3b00500, 0xffbf0f90, 0xffffffff, 0x00000000,            /* SISA_OP_VCNT           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMVN, 0xf3b00580, 0xffb30f90, 0xffffffff, 0x00000000,            /* SISA_OP_VMVN           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VPADAL, 0xf3b00600, 0xffb30f10, 0xffffffff, 0x00000000,          /* SISA_OP_VPADAL         */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VQABS, 0xf3b00700, 0xffb30f90, 0xffffffff, 0x00000000,           /* SISA_OP_VQABS          */
+     FCONDQC,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VQNEG, 0xf3b00780, 0xffb30f90, 0xffffffff, 0x00000000,           /* SISA_OP_VQNEG          */
+     FCONDQC,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_1B00_0_END, 0x0, 0x0, 0x0, 0x0)                               /* SISA_OP_F2_1B00_0_END  */
+
+CONNECT(F2_1B00_1)                                                    /* SISA_OP_F2_1B00_1_CONNECT */
+INST(VCGT_imm, 0xf3b10000, 0xffb30b90, 0xffffffff, 0x00000000,
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     SIMD_F_FLAG|SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VCGE_imm, 0xf3b10080, 0xffb30b90, 0xffffffff, 0x00000000,        /* SISA_OP_VCGE_imm       */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     SIMD_F_FLAG|SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VCEQ_imm, 0xf3b10100, 0xffb30b90, 0xffffffff, 0x00000000,        /* SISA_OP_VCEQ_imm       */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     SIMD_F_FLAG|SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VCLE_imm, 0xf3b10180, 0xffb30b90, 0xffffffff, 0x00000000,        /* SISA_OP_VCLE_imm       */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     SIMD_F_FLAG|SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VCLT_imm, 0xf3b10200, 0xffb30b90, 0xffffffff, 0x00000000,        /* SISA_OP_VCLT_imm       */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     SIMD_F_FLAG|SECOND_IMM_FLAG, SIMD_OP,
+     0, 0)
+INST(VNEG_a1, 0xf3b10380, 0xffb30b90, 0xffffffff, 0x00000000,          /* SISA_OP_VNEG_0         */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     SIMD_F_FLAG, SIMD_OP,
+     0, 0)
+INST(VABS_0, 0xf3b10300, 0xffb30b90, 0xffffffff, 0x00000000,          /* SISA_OP_VABS_0         */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     SIMD_F_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_1B00_1_END, 0x0, 0x0, 0x0, 0x0)                               /* SISA_OP_F2_1B00_1_END  */
+
+CONNECT(F2_1B00_2)                                                    /* SISA_OP_F2_1B00_2_CONNECT */
+INST(VSWP, 0xf3b20000, 0xffb30f90, 0xffffffff, 0x00000000,
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VTRN, 0xf3b20080, 0xffb30f90, 0xffffffff, 0x00000000,            /* SISA_OP_VTRN           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VUZP, 0xf3b20100, 0xffb30f90, 0xffffffff, 0x00000000,            /* SISA_OP_VUZP           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VZIP, 0xf3b20180, 0xffb30f90, 0xffffffff, 0x00000000,            /* SISA_OP_VZIP           */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VMOVN, 0xf3b20200, 0xffb30fd0, 0xffffffff, 0x00000000,           /* SISA_OP_VMOVN          */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPQR(0,3,5), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VQMOVUN, 0xf3b20240, 0xffb30fd0, 0xffffffff, 0x00000000,         /* SISA_OP_VQMOVUN        */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPQR(0,3,5), DIMM_MERGE(7,8,18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VQMOVN, 0xf3b20280, 0xffb30f90, 0xffffffff, 0x00000000,          /* SISA_OP_VQMOVN         */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPQR(0,3,5), DIMM_MERGE(7,8,18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VSHLL_0, 0xf3b20300, 0xffb30fd0, 0x000c0000, 0x000c0000,         /* SISA_OP_VSHLL_0        */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(0,3,5), DIMM(18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VCVT_hpsp, 0xf3b20600, 0xffb30fd0, 0xffffffff, 0x00000000,       /* SISA_OP_VCVT_hpsp      */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     FPQR(0,3,5), DIMM_MERGE(8,8,18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VCVT_sphp, 0xf3b20700, 0xffb30fd0, 0xffffffff, 0x00000000,       /* SISA_OP_VCVT_sphp      */
+     NCOND,
+     FPQR(12,15,22), FPNA,
+     FPDR(0,3,5), FPNA, FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_1B00_2_END, 0x0, 0x0, 0x0, 0x0)                               /* SISA_OP_F2_1B00_2_END  */
+
+CONNECT(F2_1B00_3)                                                    /* SISA_OP_F2_1B00_3_CONNECT */
+INST(VRECPE, 0xf3b30400, 0xffb30e90, 0xffffffff, 0x00000000,
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     SIMD_U_FLAG|SIMD_F_FLAG, SIMD_OP,
+     0, 0)
+INST(VRSQRTE, 0xf3b30480, 0xffb30e80, 0xffffffff, 0x00000000,         /* SISA_OP_VRSQRTE        */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM(18,19), FPNA, FPNA,
+     SIMD_F_FLAG, SIMD_OP,
+     0, 0)
+INST(VCVT_fpint, 0xf3b30600, 0xffb30e10, 0xffffffff, 0x00000000,      /* SISA_OP_VCVT_fpint     */
+     NCOND,
+     FPQDR(12,15,22,6), FPNA,
+     FPQDR(0,3,5,6), DIMM_MERGE(7,8,18,19), FPNA, FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F2_1B00_3_END, 0x0, 0x0, 0x0, 0x0)                               /* SISA_OP_F2_1B00_3_END  */
+
+CONNECT(F4)                                                           /* SISA_OP_F4_CONNECT     */
+// simd store
+LINK(F4_0, 0xf4000000, 0xff300000, 0xffffffff, 0x00000000)            /* SISA_OP_F4_0           */
+// simd load
+LINK(F4_2, 0xf4200000, 0xff300000, 0xffffffff, 0x00000000)            /* SISA_OP_F4_2           */
+
+/* A5.7.1 Miscellaneous instructions, memory hints, and Advanced SIMD instructions */
+INST(PLI_imm, 0xf4500000, 0xff700000, 0xffffffff, 0x00000000,         /* SISA_OP_PLI_imm        */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DIMM(0,11), DNA, DNA,
+     SECOND_IMM_FLAG,
+     EMPTY_OP,
+     0, 0)
+INST(PLD_imm, 0xf510f000, 0xff30f000, 0x000f0000, 0x000f0000,         /* SISA_OP_PLD_imm        */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DIMM(0,7), DNA, DNA,
+     SECOND_IMM_FLAG,
+     EMPTY_OP,
+     0, 0)
+INST(PLD_lit, 0xf51ff000, 0xff3ff000, 0xffffffff, 0x00000000,         /* SISA_OP_PLD_lit        */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     OP_LIT_FLAG,
+     EMPTY_OP,
+     0, 0)
+INST(CLREX, 0xf57ff01f, 0xffffffff, 0xffffffff, 0x00000000,           /* SISA_OP_CLREX          */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     0,
+     EMPTY_OP,
+     0, 0)
+INST(DSB, 0xf57ff040, 0xfffffff0, 0xffffffff, 0x00000000,             /* SISA_OP_DSB            */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     0,
+     EMPTY_OP,
+     0, 0)
+INST(DMB, 0xf57ff050, 0xfffffff0, 0xffffffff, 0x00000000,             /* SISA_OP_DMB            */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     0,
+     EMPTY_OP,
+     0, 0)
+INST(ISB, 0xf57ff060, 0xfffffff0, 0xffffffff, 0x00000000,             /* SISA_OP_ISB            */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     0,
+     EMPTY_OP,
+     0, 0)
+INST(PLI, 0xf6500000, 0xff700010, 0xffffffff, 0x00000000,             /* SISA_OP_PLI            */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DNA, DNA, DNA,
+     0,
+     EMPTY_OP,
+     0, 0)
+INST(PLD, 0xf7100000, 0xff300010, 0xffffffff, 0x00000000,             /* SISA_OP_PLD            */
+     NCOND,
+     DNA, DNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,5), DNA,
+     0,
+     EMPTY_OP,
+     0, 0)
+
+TAIL(F4_END, 0x0, 0x0, 0x0, 0x0)                                      /* SISA_OP_F4_END         */
+
+CONNECT(F4_0) /* simd store */                                        /* SISA_OP_F4_0_CONNECT   */
+INST(VST1_m1e, 0xf4000200, 0xffb00f00, 0xffffffff, 0x00000000,
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VST1_m1e_0, 0xf4000600, 0xffb00e00, 0xffffffff, 0x00000000,      /* SISA_OP_VST1_m1e_0     */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VST1_m1e_1, 0xf4000a00, 0xffb00f00, 0xffffffff, 0x00000000,      /* SISA_OP_VST1_m1e_1     */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VST2_m2e, 0xf4000300, 0xffb00f00, 0xffffffff, 0x00000000,        /* SISA_OP_VST2_m2e       */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VST2_m2e_0, 0xf4000800, 0xffb00e00, 0xffffffff, 0x00000000,      /* SISA_OP_VST2_m2e_0     */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VST3_m3e, 0xf4000400, 0xffb00e00, 0xffffffff, 0x00000000,        /* SISA_OP_VST3_m3e       */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VST4, 0xf4000000, 0xffb00e00, 0xffffffff, 0x00000000,            /* SISA_OP_VST4           */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+
+INST(VST1_1e1l, 0xf4800000, 0xffb00b00, 0xffffffff, 0x00000000,       /* SISA_OP_VST1_1e1l      */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VST1_1e1l_0, 0xf4800800, 0xffb00f00, 0xffffffff, 0x00000000,     /* SISA_OP_VST1_1e1l_0    */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VST2_2e1l, 0xf4800100, 0xffb00b00, 0xffffffff, 0x00000000,       /* SISA_OP_VST2_2e1l      */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VST2_2e1l_0, 0xf4800900, 0xffb00f00, 0xffffffff, 0x00000000,     /* SISA_OP_VST2_2e1l_0    */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VST3_3e1l, 0xf4800200, 0xffb00b00, 0xffffffff, 0x00000000,       /* SISA_OP_VST3_3e1l      */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VST3_3e1l_0, 0xf4800a00, 0xffb00f00, 0xffffffff, 0x00000000,     /* SISA_OP_VST3_3e1l_0    */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VST4_4e1l, 0xf4800300, 0xffb00b00, 0xffffffff, 0x00000000,       /* SISA_OP_VST4_4e1l      */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VST4_4e1l_0, 0xf4800b00, 0xffb00f00, 0xffffffff, 0x00000000,     /* SISA_OP_VST4_4e1l_0    */
+     NCOND,
+     FPNA, FPNA,
+     FPDR(12,15,22), DGPR(16,19), DGPR(0,3), DIMM(4,11),
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F4_0_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_F4_0_END       */
+
+CONNECT(F4_2) /* simd load */                                         /* SISA_OP_F4_2_CONNECT   */
+INST(VLD1_m1e, 0xf4200200, 0xffb00f00, 0xffffffff, 0x00000000,
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD1_m1e_0, 0xf4200600, 0xffb00e00, 0xffffffff, 0x00000000,      /* SISA_OP_VLD1_m1e_0     */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD1_m1e_1, 0xf4200a00, 0xffb00f00, 0xffffffff, 0x00000000,      /* SISA_OP_VLD1_m1e_1     */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD2_m2e, 0xf4200300, 0xffb00f00, 0xffffffff, 0x00000000,        /* SISA_OP_VLD2_m2e       */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD2_m2e_0, 0xf4200800, 0xffb00e00, 0xffffffff, 0x00000000,      /* SISA_OP_VLD2_m2e_0     */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD3_m3e, 0xf4200400, 0xffb00e00, 0xffffffff, 0x00000000,        /* SISA_OP_VLD3_m3e       */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD4_m4e, 0xf4200000, 0xffb00e00, 0xffffffff, 0x00000000,        /* SISA_OP_VLD4_m4e       */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+
+INST(VLD1_1e1l, 0xf4a00000, 0xffb00b00, 0xffffffff, 0x00000000,       /* SISA_OP_VLD1_1e1l      */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD1_1e1l_0, 0xf4a00800, 0xffb00f00, 0xffffffff, 0x00000000,     /* SISA_OP_VLD1_1e1l_0    */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD1_1eal, 0xf4a00c00, 0xffb00f00, 0xffffffff, 0x00000000,       /* SISA_OP_VLD1_1eal      */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,7), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD2_2e1l, 0xf4a00100, 0xffb00b00, 0xffffffff, 0x00000000,       /* SISA_OP_VLD2_2e1l      */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD2_2e1l_0, 0xf4a00900, 0xffb00f00, 0xffffffff, 0x00000000,     /* SISA_OP_VLD2_2e1l_0    */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD2_2eal, 0xf4a00d00, 0xffb00f00, 0xffffffff, 0x00000000,       /* SISA_OP_VLD2_2eal      */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,7), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD3_3e1l, 0xf4a00200, 0xffb00b00, 0xffffffff, 0x00000000,       /* SISA_OP_VLD3_3e1l      */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD3_3e1l_0, 0xf4a00a00, 0xffb00f00, 0xffffffff, 0x00000000,     /* SISA_OP_VLD3_3e1l_0    */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD3_3eal, 0xf4a00e00, 0xffb00f00, 0xffffffff, 0x00000000,       /* SISA_OP_VLD3_3eal      */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,7), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD4_4e1l, 0xf4a00300, 0xffb00b00, 0xffffffff, 0x00000000,       /* SISA_OP_VLD4_4e1l      */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD4_4e1l_0, 0xf4a00b00, 0xffb00f00, 0xffffffff, 0x00000000,     /* SISA_OP_VLD4_4e1l_0    */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,11), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+INST(VLD4_4eal, 0xf4a00f00, 0xffb00f00, 0xffffffff, 0x00000000,       /* SISA_OP_VLD4_4eal      */
+     NCOND,
+     FPDR(12,15,22), FPNA,
+     DGPR(16,19), DGPR(0,3), DIMM(4,7), FPNA,
+     NONE_FLAG, SIMD_OP,
+     0, 0)
+TAIL(F4_2_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_F4_2_END       */
+
+INST(PSEUDO_COND_EXEC, 0x00000000, 0x00000000, 0x00000000, 0x00000000, /* SISA_OP_PSEUDO_COND_EXEC */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     BR_DIR_FLAG, PSEUDO_OP,
+     0, 0)
+
+INST(PSEUDO_EXIT_TO_INTERP, 0x00000000, 0x00000000, 0x00000000, 0x00000000, /* SISA_OP_PSEUDO_EXIT_TO_INTERP */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     BR_DIR_FLAG, PSEUDO_OP,
+     0, 0)
+
+INST(PSEUDO_AEABI_ARM, 0x00000000, 0x00000000, 0x00000000, 0x00000000, /* SISA_OP_PSEUDO_AEABI_ARM */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, AEABI_OP,
+     0, 0)
+
+INST(PSEUDO_AEABI_THUMB, 0x00000000, 0x00000000, 0x00000000, 0x00000000, /* SISA_OP_PSEUDO_AEABI_THUMB */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, AEABI_OP,
+     0, 0)
+
+INST(PSEUDO_KERNEL_HELPER_CMPXCHG, 0x00000000, 0x00000000, 0x00000000, 0x00000000, /* SISA_OP_PSEUDO_KERNEL_HELPER_CMPXCHG */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, KERNEL_HELPER_OP,
+     0, 0)
+
+INST(PSEUDO_INDEX_INDUCTION_LOOP_ENTRY_TEST, 0x00000000, 0x00000000, 0x00000000, 0x00000000, /* SISA_OP_PSEUDO_INDEX_INDUCTION_LOOP_ENTRY_TEST */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     BR_DIR_FLAG, PSEUDO_OP,
+     0, 0)
+
+
+#undef LINK
+#undef INST
+#undef TAIL
+#undef CONNECT
+

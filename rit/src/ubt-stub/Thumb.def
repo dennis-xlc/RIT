@@ -1,0 +1,678 @@
+/***************************************
+   Thumb Instruction Set Encoding
+
+   INST(op, val0, msk0, val1,msk1,
+        cond,
+        o0, o1,
+        i0, i1, i2, i3,
+        cgflags, opkind,
+        res0, res1)
+
+
+ ****************************************/
+
+#define LINK     DEF_LINK
+#define INST     DEF_INST
+#define TAIL     DEF_TAIL
+#define CONNECT  DEF_CONNECT
+
+
+// 00xxxx Shift (immediate), add, subtract, move, and compare
+LINK(T_X0, 0x0000, 0xc000, 0xffff, 0x0000)                            /* SISA_OP_T_X0           */
+
+// 010000 Data-processing
+// 010001 Special data instructions and branch and exchange
+// 01001x Load from Literal Pool - v4T
+LINK(T_X4, 0x4000, 0xf000, 0xffff, 0x0000)                            /* SISA_OP_T_X4           */
+// 0101xx Load/store single data item on page
+LINK(T_X5, 0x5000, 0xf000, 0xffff, 0x0000)                            /* SISA_OP_T_X5           */
+// 011xxx
+LINK(T_X6, 0x6000, 0xe000, 0xffff, 0x0000)                            /* SISA_OP_T_X6           */
+// 100xxx
+LINK(T_X8, 0x8000, 0xe000, 0xffff, 0x0000)                            /* SISA_OP_T_X8           */
+// 10100x Generate PC-relative address - v4T
+// 10101x Generate SP-relative address - v4T
+// 1011xx Miscellaneous 16-bit instructions
+LINK(T_XA, 0xa000, 0xe000, 0xffff, 0x0000)                            /* SISA_OP_T_XA           */
+// 11000x Store multiple registers - v4T
+// 11001x Load multiple registers - v4T
+// 1101xx Conditional branch, and Supervisor Call
+LINK(T_XC, 0xc000, 0xe000, 0xffff, 0x0000)                            /* SISA_OP_T_XC           */
+
+// 11100x Unconditional Branch - v4T
+// 11101     32-bit
+// 11110     32-bit
+// 11111     32-bit
+LINK(T_XE, 0xe000, 0xe000, 0xffff, 0x0000)                            /* SISA_OP_T_XE           */
+
+TAIL(T_TOP_END, 0x0, 0x0, 0x0, 0x0)                                   /* SISA_OP_T_TOP_END      */
+
+CONNECT(T_X0)                                                         /* SISA_OP_T_X0_CONNECT   */
+//508
+INST(MOV_reg_T2, 0x0000, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_MOV_reg_T2     */
+     CONDN|CONDZ,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DNA, DNA, DNA,
+     /*SHIFT_OUTPUT_CARRY_FLAG|*/REG_FLAG, MOV_OP,
+     0, 0)
+//490
+// [0000 0...]
+INST(LSL_imm_T1, 0x0000, 0xf800, 0xffff, 0x0000,/*0x0000, 0x07c0,*/   /* SISA_OP_LSL_imm_T1     */
+     CONDN |CONDZ | CONDC,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DSHFTIMM(6, 10, 11, 12), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, MOV_OP,
+     0, 0)
+//494
+// [ 0000 1... ]
+INST(LSR_imm_T1, 0x0800, 0xf800, 0xffff, 0x0000,                      /* SISA_OP_LSR_imm_T1     */
+     CONDN | CONDZ | CONDC,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DSHFTIMM(6, 10, 11, 12), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, MOV_OP,
+     0, 0)
+//352
+INST(ASR_imm_T1, 0x1000, 0xf800, 0xffff, 0x0000,                      /* SISA_OP_ASR_imm_T1     */
+     CONDN|CONDZ|CONDC,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DSHFTIMM(6, 10, 11, 12), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|SECOND_IMM_FLAG, MOV_OP,
+     0, 0)
+//336
+INST(ADD_reg_T1, 0x1800, 0xfe00, 0xffff, 0x0000,                      /* SISA_OP_ADD_reg_T1     */
+     CONDN|CONDZ|CONDC|CONDV,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DGPR(6, 8), DSHFTIMM(13, 14, 13, 14), DNA,
+     REG_FLAG, ALU_OP,
+     0, 0)
+//734
+//0001 101...
+INST(SUB_reg_T1, 0x1a00, 0xfe00, 0xffff, 0x0000,                      /* SISA_OP_SUB_reg_T1     */
+     CONDN|CONDZ|CONDC|CONDV,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DGPR(6, 8), DSHFTIMM(13, 14, 13, 14), DNA,
+     REG_FLAG, ALU_OP,
+     0, 0)
+
+//332
+INST(ADD_imm_T1, 0x1c00, 0xfe00, 0xffff, 0x0000,                      /* SISA_OP_ADD_imm_T1     */
+     CONDN|CONDZ|CONDC|CONDV,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DIMM(6, 8), DNA, DNA,
+     SECOND_IMM_FLAG, ALU_OP,
+     0, 0)
+//730
+//0001 111...
+INST(SUB_imm_T1, 0x1e00, 0xfe00, 0xffff, 0x0000,                      /* SISA_OP_SUB_imm_T1     */
+     CONDN|CONDZ|CONDC|CONDV,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DIMM(6, 8), DNA, DNA,
+     SECOND_IMM_FLAG, ALU_OP,
+     0, 0)
+//506
+INST(MOV_imm_T1, 0x2000, 0xf800, 0xffff, 0x0000,                      /* SISA_OP_MOV_imm_T1     */
+     CONDN|CONDZ,
+     DGPR(8, 10), DNA,
+     DIMM(0, 7), DNA, DNA, DNA,
+     SECOND_IMM_FLAG, MOV_OP,
+     0, 0)
+//392
+INST(CMP_imm_T1, 0x2800, 0xf800, 0xffff, 0x0000,                      /* SISA_OP_CMP_imm_T1     */
+     CONDN|CONDZ|CONDC|CONDV,
+     DNA, DNA,
+     DGPR(8, 10), DIMM(0, 7), DNA, DNA,
+     SECOND_IMM_FLAG, CMP_OP,
+     0, 0)
+//332
+INST(ADD_imm_T2, 0x3000, 0xf800, 0xffff, 0x0000,                      /* SISA_OP_ADD_imm_T2     */
+     CONDN|CONDZ|CONDC|CONDV,
+     DGPR(8, 10), DNA,
+     DGPR(8, 10), DIMM(0, 7), DNA, DNA,
+     SECOND_IMM_FLAG, ALU_OP,
+     0, 0)
+//730
+INST(SUB_imm_T2, 0x3800, 0xf800, 0xffff, 0x0000,                      /* SISA_OP_SUB_imm_T2     */
+     CONDN|CONDZ|CONDC|CONDV,
+     DGPR(8, 10), DNA,
+     DGPR(8, 10), DIMM(0, 7), DNA, DNA,
+     SECOND_IMM_FLAG, ALU_OP,
+     0, 0)
+
+TAIL(T_X0_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_T_X0_END       */
+
+CONNECT(T_X4)                                                         /* SISA_OP_T_X4_CONNECT   */
+// [0100 0000 00...
+INST(AND_reg_T1, 0x4000, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_AND_reg_T1     */
+     CONDN | CONDZ ,
+     DGPR(0, 2), DNA,
+     DGPR(0, 2), DGPR(3, 5), DSHFTIMM(12, 13, 12, 13), DNA,
+     REG_FLAG, LOG_OP,
+     0, 0)
+//[0100 0000 01...
+INST(EOR_reg_T1, 0x4040, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_EOR_reg_T1     */
+     CONDN | CONDZ ,
+     DGPR(0, 2), DNA,
+     DGPR(0, 2), DGPR(3, 5), DSHFTIMM(12,13,12,13), DNA,
+     REG_FLAG, LOG_OP,
+     0, 0)
+
+// [0100 0000 10...]
+INST(LSL_reg_T1, 0x4080, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_LSL_reg_T1     */
+     CONDN | CONDZ | CONDC,
+     DGPR(0, 2), DNA,
+     DGPR(0, 2), DSHFTGPR(3, 5, 8, 9), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, MOV_OP,
+     0, 0)
+// [ 0100 0000 11... ]
+INST(LSR_reg_T1, 0x40c0, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_LSR_reg_T1     */
+     CONDN | CONDZ | CONDC,
+     DGPR(0, 2), DNA,
+     DGPR(0, 2), DSHFTGPR(3, 5, 7, 8), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, MOV_OP,
+     0, 0)
+// [0100 0001 00...]
+INST(ASR_reg_T1, 0x4100, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_ASR_reg_T1     */
+     CONDN | CONDZ | CONDC,
+     DGPR(0, 2), DNA,
+     DGPR(0, 2), DSHFTGPR(3, 5, 7, 8), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, MOV_OP,
+     0, 0)
+// [0100 0001 01...]
+INST(ADC_reg_T1, 0x4140, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_ADC_reg_T1     */
+     CONDN | CONDZ | CONDC | CONDV,
+     DGPR(0, 2), DNA,
+     DGPR(0, 2), DGPR(3, 5), DSHFTIMM(12, 13, 12, 13), DNA,
+     INPUT_CARRY_FLAG|REG_FLAG, ALU_OP,
+     0, 0)
+// [0100 0001 10...]
+INST(SBC_reg_T1, 0x4180, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_SBC_reg_T1     */
+     CONDN | CONDZ | CONDC | CONDV,
+     DGPR(0, 2), DNA,
+     DGPR(0, 2), DGPR(3, 5), DSHFTIMM(12, 13, 12, 13), DNA,
+     INPUT_CARRY_FLAG|REG_FLAG, ALU_OP,
+     0, 0)
+// [0100 0001 11...]
+INST(ROR_reg_T1, 0x41c0, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_ROR_reg_T1     */
+     CONDN | CONDZ | CONDC,
+     DGPR(0, 2), DNA,
+     DGPR(0, 2), DSHFTGPR(3, 5, 7, 8), DNA, DNA,
+     SHIFT_OUTPUT_CARRY_FLAG|REG_FLAG, MOV_OP,
+     0, 0)
+// [0100 0010 00...]
+INST(TST_reg_T1, 0x4200, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_TST_reg_T1     */
+     CONDN | CONDZ ,
+     DNA, DNA,
+     DGPR(0, 2), DGPR(3, 5), DSHFTIMM(12,13,12,13), DNA,
+     REG_FLAG, TEST_OP,
+     0, 0)
+// [0100 0010 01...]
+INST(RSB_imm_T1, 0x4240, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_RSB_imm_T1     */
+     CONDN | CONDZ | CONDC | CONDV,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DNA, DNA, DNA,
+     SECOND_IMM_FLAG, ALU_OP,
+     0, 0)
+//394
+//Rn amd Rm both from r0-r7
+INST(CMP_reg_T1, 0x4280, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_CMP_reg_T1     */
+     CONDN|CONDZ|CONDC|CONDV,
+     DNA, DNA,
+     DGPR(0, 2), DGPR(3, 5), DSHFTIMM(12, 13, 12, 13), DNA,
+     NONE_FLAG, CMP_OP,
+     0, 0)
+INST(CMN_reg_T1, 0x42c0, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_CMN_reg_T1     */
+     CONDN|CONDZ|CONDC|CONDV,
+     DNA, DNA,
+     DGPR(0, 2), DGPR(3, 5), DSHFTIMM(12, 13, 12, 13), DNA,
+     REG_FLAG, CMP_OP,
+     0, 0)
+//0100 0011 00
+INST(ORR_reg_T1, 0x4300, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_ORR_reg_T1     */
+     CONDN|CONDZ,
+     DGPR(0, 2), DNA,
+     DGPR(0, 2), DGPR(3, 5), DSHFTIMM(12, 13, 12, 13), DNA,
+     REG_FLAG, LOG_OP,
+     0, 0)
+//0100 0011 01
+INST(MUL_reg_T1, 0x4340, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_MUL_reg_T1     */
+     CONDN|CONDZ/*|CONDC*/,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DGPR(0, 2), DNA, DNA,
+     REG_FLAG, MUL32_OP,
+     0, 0)
+//0100 0011 10
+INST(BIC_reg_T1, 0x4380, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_BIC_reg_T1     */
+     CONDN|CONDZ,
+     DGPR(0, 2), DNA,
+     DGPR(0, 2), DGPR(3, 5), DSHFTIMM(12, 13, 12, 13), DNA,
+     REG_FLAG, LOG_OP,
+     0, 0)
+//0100 0011 11
+INST(MVN_reg_T1, 0x43c0, 0xffc0, 0xffff, 0x0000,                      /* SISA_OP_MVN_reg_T1     */
+     CONDN|CONDZ,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DSHFTIMM(12,13,12,13), DNA, DNA,
+     REG_FLAG, MOV_OP,
+     0, 0)
+//336
+INST(ADD_reg_T2, 0x4400, 0xff00, 0xffff, 0x0000,                      /* SISA_OP_ADD_reg_T2     */
+     NCOND,
+     DGPR_MERGE(0, 2, 7), DNA,
+     DGPR_MERGE(0, 2, 7), DGPR(3, 6), DSHFTIMM(12, 13, 12, 13), DNA,
+     REG_FLAG, ALU_OP,
+     0, 0)
+//342
+//[0100 0100 ...]
+INST(ADD_sp_reg_T1, 0x4468, 0xff78, 0xffff, 0x0000,                   /* SISA_OP_ADD_sp_reg_T1  */
+     NCOND,
+     DGPR_MERGE(0, 2, 7), DNA,
+     DGPR(3, 6), DGPR_MERGE(0, 2, 7), DSHFTIMM(12, 13, 12, 13), DNA,
+     REG_FLAG, ALU_OP,
+     0, 0)
+//[0100 0100 1...]
+INST(ADD_sp_reg_T2, 0x4485, 0xff87, 0xffff, 0x0000,                   /* SISA_OP_ADD_sp_reg_T2  */
+     NCOND,
+     DGPR_CONST(13), DNA,
+     DGPR_CONST(13), DGPR(3,6), DSHFTIMM(12, 13, 12, 13), DNA,
+     REG_FLAG, ALU_OP,
+     0, 0)
+//394
+//Rn and Rm not both from r0-r7
+INST(CMP_reg_T2, 0x4500, 0xff00, 0xffff, 0x0000,                      /* SISA_OP_CMP_reg_T2     */
+     CONDN|CONDZ|CONDC|CONDV,
+     DNA, DNA,
+     DGPR_MERGE(0,2,7), DGPR(3,6), DSHFTIMM(12,13,12,13), DNA,
+     REG_FLAG, CMP_OP,
+     0, 0)
+//508
+INST(MOV_reg_T1, 0x4600, 0xff00, 0xffff, 0x0000,                      /* SISA_OP_MOV_reg_T1     */
+     NCOND,
+     DGPR_MERGE(0,2,7), DNA,
+     DGPR(3,6), DNA, DNA, DNA,
+     REG_FLAG, MOV_OP,
+     0, 0)
+//374
+//0100 0111 0
+INST(BX_T1, 0x4700, 0xff80, 0xffff, 0x0000,                           /* SISA_OP_BX_T1          */
+     NCOND,
+     DNA, DNA,
+     DGPR(3,6), DNA, DNA, DNA,
+     BR_INDIR_FLAG, JMP_OP,
+     0, 0)
+//372
+INST(BLX_reg_T1, 0x4780, 0xff80, 0xffff, 0x0000,                      /* SISA_OP_BLX_reg_T1     */
+     NCOND,
+     DNA, DNA,
+     DGPR(3,6), DNA, DNA, DNA,
+     BR_INDIR_FLAG|BLR_FLAG|REG_FLAG, JMP_OP,
+     0, 0)
+//434
+INST(LDR_lit_T1, 0x4800, 0xf800, 0xffff, 0x0000,                      /* SISA_OP_LDR_lit_T1     */
+     NCOND,
+     DGPR(8,10), DNA,
+     DGPR_CONST(15), DIMM_ZERO_EXTEND(0,7,2), DNA, DNA,
+     P_FLAG|U_FLAG|OP_SIZE_WORD_FLAG|OP_LIT_FLAG, LD_OP,
+     0, 0)
+TAIL(T_X4_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_T_X4_END       */
+
+CONNECT(T_X5)                                                         /* SISA_OP_T_X5_CONNECT   */
+//698
+INST(STR_reg_T1, 0x5000, 0xfe00, 0xffff, 0x0000,                      /* SISA_OP_STR_reg_T1     */
+     NCOND,
+     DNA, DNA,
+     DGPR(0,2), DGPR(3,5), DGPR(6,8), DSHFTIMM(9,10,9,10),
+     P_FLAG|U_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_WORD_FLAG|REG_FLAG, ST_OP,
+     0, 0)
+//724
+INST(STRH_reg_T1, 0x5200, 0xfe00, 0xffff, 0x0000,                     /* SISA_OP_STRH_reg_T1    */
+     NCOND,
+     DNA, DNA,
+     DGPR(0,2), DGPR(3,5), DGPR(6,8), DSHFTIMM(10,11,10,11),
+     P_FLAG|U_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_HWORD_FLAG|REG_FLAG, ST_OP,
+     0, 0)
+//704
+INST(STRB_reg_T1, 0x5400, 0xfe00, 0xffff, 0x0000,                     /* SISA_OP_STRB_reg_T1    */
+     NCOND,
+     DNA, DNA,
+     DGPR(0,2), DGPR(3,5), DGPR(6,8), DSHFTIMM(9,9,9,9),
+     P_FLAG|U_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_BYTE_FLAG|REG_FLAG, ST_OP,
+     0, 0)
+//476
+INST(LDRSB_reg_T1, 0x5600, 0xfe00, 0xffff, 0x0000,                    /* SISA_OP_LDRSB_reg_T1   */
+     NCOND,
+     DGPR(0,2), DNA,
+     DGPR(3,5), DGPR(6,8), DSHFTIMM(11,11,11,11), DNA,
+     P_FLAG|U_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_BYTE_FLAG|REG_FLAG|SIGNED_FLAG, LD_OP,
+     0, 0)
+//436
+INST(LDR_reg_T1, 0x5800, 0xfe00, 0xffff, 0x0000,                      /* SISA_OP_LDR_reg_T1     */
+     NCOND,
+     DGPR(0,2), DNA,
+     DGPR(3,5), DGPR(6,8), DSHFTIMM(9,10,9,10), DNA,
+     P_FLAG|U_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_WORD_FLAG|REG_FLAG, LD_OP,
+     0, 0)
+//468
+INST(LDRH_reg_T1, 0x5a00, 0xfe00, 0xffff, 0x0000,                     /* SISA_OP_LDRH_reg_T1    */
+     NCOND,
+     DGPR(0,2), DNA,
+     DGPR(3,5), DGPR(6,8), DSHFTIMM(10,10,10,10), DNA,
+     P_FLAG|U_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_HWORD_FLAG|REG_FLAG|UNSIGNED_FLAG, LD_OP,
+     0, 0)
+//444
+INST(LDRB_reg_T1, 0x5c00, 0xfe00, 0xffff, 0x0000,                     /* SISA_OP_LDRB_reg_T1    */
+     NCOND,
+     DGPR(0,2), DNA,
+     DGPR(3,5), DGPR(6,8), DSHFTIMM(9,9,9,9), DNA,
+     P_FLAG|U_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_BYTE_FLAG|REG_FLAG|UNSIGNED_FLAG, LD_OP,
+     0, 0)
+//484
+INST(LDRSH_reg_T1, 0x5e00, 0xfe00, 0xffff, 0x0000,                    /* SISA_OP_LDRSH_reg_T1   */
+     NCOND,
+     DGPR(0,2), DNA,
+     DGPR(3,5), DGPR(6,8), DSHFTIMM(13,13,13,13), DNA,
+     P_FLAG|U_FLAG|ADDR_FORMAT_FLAG|OP_SIZE_HWORD_FLAG|REG_FLAG|SIGNED_FLAG, LD_OP,
+     0, 0)
+TAIL(T_X5_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_T_X5_END       */
+
+CONNECT(T_X6)                                                         /* SISA_OP_T_X6_CONNECT   */
+//694
+INST(STR_imm_T1, 0x6000, 0xf800, 0xffff, 0x0000,                      /* SISA_OP_STR_imm_T1     */
+     NCOND,
+     DNA, DNA,
+     DGPR(0,2), DGPR(3,5), DIMM_ZERO_EXTEND(6,10,2), DNA,
+     P_FLAG|U_FLAG|OP_SIZE_WORD_FLAG|SECOND_IMM_FLAG, ST_OP,
+     0, 0)
+//430
+INST(LDR_imm_T1, 0x6800, 0xf800, 0xffff, 0x0000,                      /* SISA_OP_LDR_imm_T1     */
+     NCOND,
+     DGPR(0,2), DNA,
+     DGPR(3,5), DIMM_ZERO_EXTEND(6,10,2), DNA, DNA,
+     P_FLAG|U_FLAG|OP_SIZE_WORD_FLAG|SECOND_IMM_FLAG, LD_OP,
+     0, 0)
+//700
+INST(STRB_imm_T1, 0x7000, 0xf800, 0xffff, 0x0000,                     /* SISA_OP_STRB_imm_T1    */
+     NCOND,
+     DNA, DNA,
+     DGPR(0,2), DGPR(3,5), DIMM(6, 10), DNA,
+     P_FLAG|U_FLAG|OP_SIZE_BYTE_FLAG|SECOND_IMM_FLAG, ST_OP,
+     0, 0)
+//438
+INST(LDRB_imm_T1, 0x7800, 0xf800, 0xffff, 0x0000,                     /* SISA_OP_LDRB_imm_T1    */
+     NCOND,
+     DGPR(0,2), DNA,
+     DGPR(3,5), DIMM(6,10), DNA, DNA,
+     P_FLAG|U_FLAG|SECOND_IMM_FLAG|OP_SIZE_BYTE_FLAG|UNSIGNED_FLAG, LD_OP,
+     0, 0)
+TAIL(T_X6_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_T_X6_END       */
+
+CONNECT(T_X8)                                                         /* SISA_OP_T_X8_CONNECT   */
+
+//720
+INST(STRH_imm_T1, 0x8000, 0xf800, 0xffff, 0x0000,                     /* SISA_OP_STRH_imm_T1    */
+     NCOND,
+     DNA, DNA,
+     DGPR(0,2), DGPR(3,5), DIMM_ZERO_EXTEND(6,10,1), DNA,
+     P_FLAG|U_FLAG|OP_SIZE_HWORD_FLAG|SECOND_IMM_FLAG, ST_OP,
+     0, 0)
+//430
+INST(LDRH_imm_T1, 0x8800, 0xf800, 0xffff, 0x0000,                     /* SISA_OP_LDRH_imm_T1    */
+     NCOND,
+     DGPR(0,2), DNA,
+     DGPR(3,5), DIMM_ZERO_EXTEND(6,10,1), DNA, DNA,
+     P_FLAG|U_FLAG|SECOND_IMM_FLAG|OP_SIZE_HWORD_FLAG|UNSIGNED_FLAG, LD_OP,
+     0, 0)
+//694
+INST(STR_imm_T2, 0x9000, 0xf800, 0xffff, 0x0000,                      /* SISA_OP_STR_imm_T2     */
+     NCOND,
+     DNA, DNA,
+     DGPR(8,10), DGPR_CONST(13), DIMM_ZERO_EXTEND(0,7,2), DNA,
+     P_FLAG|U_FLAG|OP_SIZE_WORD_FLAG|SECOND_IMM_FLAG, ST_OP,
+     0, 0)
+//430
+INST(LDR_imm_T2, 0x9800, 0xf800, 0xffff, 0x0000,                      /* SISA_OP_LDR_imm_T2     */
+     NCOND,
+     DGPR(8,10), DNA,
+     DGPR_CONST(13),DIMM_ZERO_EXTEND(0,7,2), DNA, DNA,
+     P_FLAG|U_FLAG|OP_SIZE_WORD_FLAG|SECOND_IMM_FLAG, LD_OP,
+     0, 0)
+TAIL(T_X8_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_T_X8_END       */
+
+CONNECT(T_XA)                                                         /* SISA_OP_T_XA_CONNECT   */
+//344
+//[1010 0...]
+INST(ADR_T1, 0xa000, 0xf800, 0xffff, 0x0000,                          /* SISA_OP_ADR_T1         */
+     NCOND,
+     DGPR(8,10), DNA,
+     DGPR_CONST(15), DIMM_ZERO_EXTEND(0,7,2), DNA, DNA,
+     OP_LIT_FLAG, MISC_OP,
+     0, 0)
+//340
+//[1010 1...]
+INST(ADD_sp_imm_T1, 0xa800, 0xf800, 0xffff, 0x0000,                   /* SISA_OP_ADD_sp_imm_T1  */
+     NCOND,
+     DGPR(8,10), DNA,
+     DGPR_CONST(13), DIMM_ZERO_EXTEND(0,7,2), DNA, DNA,
+     P_FLAG|U_FLAG|SECOND_IMM_FLAG, ALU_OP,
+     0, 0)
+
+//626
+INST(SETEND_T1, 0xb640, 0xffe0, 0xffff, 0x0000,                       /* SISA_OP_SETEND_T1      */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+//1561
+INST(CPS_T1, 0xb660, 0xffe0, 0xffff, 0x0000,                          /* SISA_OP_CPS_T1         */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+
+INST(IT_T1, 0xbf00, 0xff00, 0x0000, 0x000f,                          /* SISA_OP_IT_T1         */
+     NCOND,
+     DNA, DNA,
+     DIMM(0,7), DNA, DNA, DNA,
+     NONE_FLAG, MISC_OP,
+     0, 0)
+//340
+//[1011 0000 0...]
+INST(ADD_sp_imm_T2, 0xb000, 0xff80, 0xffff, 0x0000,                   /* SISA_OP_ADD_sp_imm_T2  */
+     NCOND,
+     DGPR_CONST(13), DNA,
+     DGPR_CONST(13), DIMM_ZERO_EXTEND(0,6,2), DNA, DNA,
+     SECOND_IMM_FLAG, ALU_OP,
+     0, 0)
+//738
+INST(SUB_sp_imm_T1, 0xb080, 0xff80, 0xffff, 0x0000,                   /* SISA_OP_SUB_sp_imm_T1  */
+     NCOND,
+     DGPR_CONST(13), DNA,
+     DGPR_CONST(13), DIMM_ZERO_EXTEND(0,6,2), DNA, DNA,
+     SECOND_IMM_FLAG, ALU_OP,
+     0, 0)
+//378 further need to extend '0' for imm
+INST(CBZ_T1, 0xb100, 0xfd00, 0xffff, 0x0000,                          /* SISA_OP_CBZ_T1         */
+     NCOND,
+     DNA, DNA,
+     DGPR(0, 2), DIMM_MERGE(9, 9, 3, 7), DNA, DNA,
+     BR_DIR_FLAG, JMP_OP,
+     0, 0)
+//756
+INST(SXTH_T1, 0xb200, 0xffc0, 0xffff, 0x0000,                         /* SISA_OP_SXTH_T1        */
+     NCOND,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DNA, DNA, DNA,
+     OP_SIZE_HWORD_FLAG|SIGNED_FLAG, EXT_OP,
+     0, 0)
+//752
+INST(SXTB_T1, 0xb240, 0xffc0, 0xffff, 0x0000,                         /* SISA_OP_SXTB_T1        */
+     NCOND,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DNA, DNA, DNA,
+     OP_SIZE_BYTE_FLAG|SIGNED_FLAG, EXT_OP,
+     0, 0)
+//836
+INST(UXTH_T1, 0xb280, 0xffc0, 0xffff, 0x0000,                         /* SISA_OP_UXTH_T1        */
+     NCOND,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DNA, DNA, DNA,
+     OP_SIZE_HWORD_FLAG|UNSIGNED_FLAG, EXT_OP,
+     0, 0)
+//832
+INST(UXTB_T1, 0xb2c0, 0xffc0, 0xffff, 0x0000,                         /* SISA_OP_UXTB_T1        */
+     NCOND,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DNA, DNA, DNA,
+     OP_SIZE_BYTE_FLAG|UNSIGNED_FLAG, EXT_OP,
+     0, 0)
+//560
+INST(PUSH_T, 0xb400, 0xfe00, 0xffff, 0x0000,                          /* SISA_OP_PUSH_T         */
+     NCOND,
+     DNA, DNA,
+     DGPR(10, 13), DGPR_LIST_T(0, 7, 8, 14), DNA, DNA,
+     W_FLAG|P_FLAG, PUSH_OP,
+     0, 0)
+//378 further need to extend '0' for imm
+INST(CBNZ_T1, 0xb900, 0xfd00, 0xffff, 0x0000,                         /* SISA_OP_CBNZ_T1        */
+     NCOND,
+     DNA, DNA,
+     DGPR(0, 2), DIMM_MERGE(9, 9, 3, 7), DNA, DNA,
+     BR_DIR_FLAG, JMP_OP,
+     0, 0)
+//584
+INST(REV_T1, 0xba00, 0xffc0, 0xffff, 0x0000,                          /* SISA_OP_REV_T1         */
+     NCOND,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DNA, DNA, DNA,
+     NONE_FLAG, REVERSE_OP,
+     0, 0)
+//586
+INST(REV16_T1, 0xba40, 0xffc0, 0xffff, 0x0000,                        /* SISA_OP_REV16_T1       */
+     NCOND,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DNA, DNA, DNA,
+     NONE_FLAG, REVERSE_OP,
+     0, 0)
+//588
+INST(REVSH_T1, 0xbac0, 0xffc0, 0xffff, 0x0000,                        /* SISA_OP_REVSH_T1       */
+     NCOND,
+     DGPR(0, 2), DNA,
+     DGPR(3, 5), DNA, DNA, DNA,
+     NONE_FLAG, REVERSE_OP,
+     0, 0)
+//558
+INST(POP_T, 0xbc00, 0xfe00, 0xffff, 0x0000,                           /* SISA_OP_POP_T          */
+     NCOND,
+     DGPR_LIST_T(0, 7, 8, 15), DNA,
+     DGPR_CONST(13), DNA, DNA, DNA,
+     U_FLAG|W_FLAG, POP_OP,
+     0, 0)
+//368
+INST(BKPT_T1, 0xbe00, 0xff00, 0xffff, 0x0000,                         /* SISA_OP_BKPT_T1        */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, NO_OP,
+     0, 0)
+//534
+INST(NOP_T1, 0xbf00, 0xffff, 0xffff, 0x0000,                          /* SISA_OP_NOP_T1         */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, EMPTY_OP,
+     0, 0)
+//1124
+INST(YIELD_T1, 0xbf10, 0xffff, 0xffff, 0x0000,                        /* SISA_OP_YIELD_T1       */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, EMPTY_OP,
+     0, 0)
+//1120
+INST(WFE_T1, 0xbf20, 0xffff, 0xffff, 0x0000,                          /* SISA_OP_WFE_T1         */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, EMPTY_OP,
+     0, 0)
+//1122
+INST(WFI_T1, 0xbf30, 0xffff, 0xffff, 0x0000,                          /* SISA_OP_WFI_T1         */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, EMPTY_OP,
+     0, 0)
+//628
+INST(SEV_T1, 0xbf40, 0xffff, 0xffff, 0x0000,                          /* SISA_OP_SEV_T1         */
+     NCOND,
+     DNA, DNA,
+     DNA, DNA, DNA, DNA,
+     NONE_FLAG, EMPTY_OP,
+     0, 0)
+TAIL(T_XA_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_T_XA_END       */
+
+CONNECT(T_XC)                                                         /* SISA_OP_T_XC_CONNECT   */
+//686
+INST(STM_T1, 0xc000, 0xf800, 0xffff, 0x0000,                          /* SISA_OP_STM_T1         */
+     NCOND,
+     DNA, DNA,
+     DGPR(8, 10), DGPR_LIST(0, 7), DNA, DNA,
+     /*P_FLAG|*/U_FLAG|W_FLAG, STM_OP,
+     0, 0)
+//422
+INST(LDM_T1, 0xc800, 0xf800, 0xffff, 0x0000,                          /* SISA_OP_LDM_T1         */
+     NCOND,
+     DGPR_LIST(0, 7), DNA,
+     DGPR(8, 10), DNA, DNA, DNA,
+     /*P_FLAG|*/U_FLAG|W_FLAG, LDM_OP,
+     0, 0)
+//356
+INST(B_T1, 0xd000, 0xf000, 0x0e00, 0x0e00,                            /* SISA_OP_B_T1           */
+     NCOND,
+     DNA, DNA,
+     DIMM_SIGN_EXTEND(0,7,0), DCOND(8,11), DNA, DNA,
+     /*INS_CLA_GPC|*/BR_DIR_FLAG, JMP_OP,
+     0, 0)
+//742
+INST(SVC_T1, 0xdf00, 0xff00, 0xffff, 0x0000,                          /* SISA_OP_SVC_T1         */
+     NCOND,
+     DNA, DNA,
+     DIMM(0,7), DNA, DNA, DNA,
+     /*INS_CLA_GPC|*/BR_DIR_FLAG, MISC_OP,
+     0, 0)
+TAIL(T_XC_END, 0x0, 0x0, 0x0, 0x0)                                    /* SISA_OP_T_XC_END       */
+
+CONNECT(T_XE)                                                         /* SISA_OP_T_XE_CONNECT   */
+//356
+INST(B_T2, 0xe000, 0xf800, 0xffff, 0x0000,                            /* SISA_OP_B_T2           */
+     NCOND,
+     DNA, DNA,
+     DIMM_SIGN_EXTEND(0,10,0), DNA, DNA, DNA,
+     /*INS_CLA_GPC|*/BR_DIR_FLAG, JMP_OP,
+     0, 0)
+//0b11101
+LINK(T_XE_01, 0xe800, 0xf800, 0xffff, 0x0000)                         /* SISA_OP_T_XE_01        */
+//0b11110
+LINK(T_XE_10, 0xf000, 0xf800, 0xffff, 0x0000)                         /* SISA_OP_T_XE_10        */
+//0b11111
+LINK(T_XE_11, 0xf800, 0xf800, 0xffff, 0x0000)                         /* SISA_OP_T_XE_11        */
+TAIL(T_XE_END, 0x0, 0x0, 0x0, 0x0)
+
+CONNECT(T_XE_01)                                                      /* SISA_OP_T_XE_01_CONNECT */
+TAIL(T_XE_01_END, 0x0, 0x0, 0x0, 0x0)
+
+CONNECT(T_XE_10)                                                      /* SISA_OP_T_XE_10_CONNECT */
+
+TAIL(T_XE_10_END, 0x0, 0x0, 0x0, 0x0)                                 /* SISA_OP_T_XE_10_END    */
+
+CONNECT(T_XE_11)                                                      /* SISA_OP_T_XE_11_CONNECT */
+
+TAIL(T_XE_11_END, 0x0, 0x0, 0x0, 0x0)
+
+
+#undef LINK
+#undef INST
+#undef TAIL
+#undef CONNECT
+

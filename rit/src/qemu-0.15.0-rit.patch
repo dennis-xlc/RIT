@@ -1,0 +1,112 @@
+diff --git a/cpu-exec.c b/cpu-exec.c
+index de0d716..8dfff71 100644
+--- a/cpu-exec.c
++++ b/cpu-exec.c
+@@ -502,6 +502,11 @@ int cpu_exec(CPUState *env)
+                     env->exception_index = EXCP_INTERRUPT;
+                     cpu_loop_exit(env);
+                 }
++#if 0
++                if (log_eip == env->regs[15]) {
++                    log_cpu_state(env, 0);
++                }
++#endif
+ #if defined(DEBUG_DISAS) || defined(CONFIG_DEBUG_EXEC)
+                 if (qemu_loglevel_mask(CPU_LOG_TB_CPU)) {
+                     /* restore flags in standard format */
+diff --git a/linux-user/main.c b/linux-user/main.c
+index 6a8f4bd..dcfae4f 100644
+--- a/linux-user/main.c
++++ b/linux-user/main.c
+@@ -34,7 +34,7 @@
+ #include "qemu-timer.h"
+ #include "envlist.h"
+ 
+-#define DEBUG_LOGFILE "/tmp/qemu.log"
++#define DEBUG_LOGFILE "./qemu.log"
+ 
+ char *exec_path;
+ 
+@@ -45,6 +45,7 @@ unsigned long guest_base;
+ int have_guest_base;
+ unsigned long reserved_va;
+ #endif
++unsigned long log_eip;
+ 
+ static const char *interp_prefix = CONFIG_QEMU_INTERP_PREFIX;
+ const char *qemu_uname_release = CONFIG_UNAME_RELEASE;
+@@ -2813,6 +2814,7 @@ static void usage(void)
+            "-p pagesize  set the host page size to 'pagesize'\n"
+            "-singlestep  always run in singlestep mode\n"
+            "-strace      log system calls\n"
++           "-addr eip    print cpu state before exec instruction at eip\n"
+            "\n"
+            "Environment variables:\n"
+            "QEMU_STRACE       Print system calls and arguments similar to the\n"
+@@ -3044,6 +3046,8 @@ int main(int argc, char **argv, char **envp)
+         } else if (!strcmp(r, "version")) {
+             version();
+             exit(0);
++        } else if (!strcmp(r, "addr")) {
++            log_eip = strtoul(argv[optind++], NULL, 0);
+         } else {
+             usage();
+         }
+diff --git a/qemu-log.h b/qemu-log.h
+index fccfb11..757627d 100644
+--- a/qemu-log.h
++++ b/qemu-log.h
+@@ -4,6 +4,7 @@
+ /* The deprecated global variables: */
+ extern FILE *logfile;
+ extern int loglevel;
++extern unsigned long log_eip;
+ 
+ 
+ /* 
+diff --git a/target-arm/translate.c b/target-arm/translate.c
+index fcb41d1..ba45298 100644
+--- a/target-arm/translate.c
++++ b/target-arm/translate.c
+@@ -10031,17 +10031,24 @@ void cpu_dump_state(CPUState *env, FILE *f, fprintf_function cpu_fprintf,
+         double d;
+     } d0;
+ #endif
+-    uint32_t psr;
+ 
+-    for(i=0;i<16;i++) {
+-        cpu_fprintf(f, "R%02d=%08x", i, env->regs[i]);
+-        if ((i % 4) == 3)
+-            cpu_fprintf(f, "\n");
+-        else
+-            cpu_fprintf(f, " ");
++    uint32_t psr;
++    int is_print = 1;
++    if (log_eip && log_eip != env->regs[15]) {
++        is_print = 0;
++    }
++    if (is_print) {
++        for(i=0;i<16;i++) {
++            if ((i % 4) == 0)
++                cpu_fprintf(f, "[CPUSTATE] ");
++            cpu_fprintf(f, "R%02d=%08x", i, env->regs[i]);
++            if ((i % 4) == 3)
++                cpu_fprintf(f, "\n");
++            else
++                cpu_fprintf(f, " ");
+     }
+     psr = cpsr_read(env);
+-    cpu_fprintf(f, "PSR=%08x %c%c%c%c %c %s%d\n",
++    cpu_fprintf(f, "[CPUSTATE] PSR=%08x %c%c%c%c %c %s%d\n",
+                 psr,
+                 psr & (1 << 31) ? 'N' : '-',
+                 psr & (1 << 30) ? 'Z' : '-',
+@@ -10049,7 +10056,7 @@ void cpu_dump_state(CPUState *env, FILE *f, fprintf_function cpu_fprintf,
+                 psr & (1 << 28) ? 'V' : '-',
+                 psr & CPSR_T ? 'T' : 'A',
+                 cpu_mode_names[psr & 0xf], (psr & 0x10) ? 32 : 26);
+-
++    }
+ #if 0
+     for (i = 0; i < 16; i++) {
+         d.d = env->vfp.regs[i];
